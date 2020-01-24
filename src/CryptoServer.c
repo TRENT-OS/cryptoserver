@@ -57,6 +57,7 @@ typedef struct
     SeosKeyStoreCtx* context;
     SeosKeyStore store;
     SeosCryptoApi crypto;
+    size_t bytesWritten;
 } CryptoServer_KeyStore;
 
 typedef struct
@@ -214,7 +215,8 @@ initKeyStore(
 {
     seos_err_t err;
     char name[16];
-    SeosCryptoApi_Config localCfg = {
+    SeosCryptoApi_Config localCfg =
+    {
         .mode = SeosCryptoApi_Mode_LIBRARY,
         .mem.malloc = malloc,
         .mem.free = free,
@@ -353,9 +355,21 @@ CryptoServer_storeKey(
         return err;
     }
 
+    // Check if we are about to exceed the storage limit for this keystore
+    if (client->keys.bytesWritten + sizeof(data) >
+        config.clients[client->id].storageLimit)
+    {
+        return SEOS_ERROR_INSUFFICIENT_SPACE;
+    }
+
     // Store key in keystore
-    return SeosKeyStoreApi_importKey(client->keys.context, name, &data,
-                                     sizeof(SeosCryptoApi_Key_Data));
+    if ((err = SeosKeyStoreApi_importKey(client->keys.context, name,
+                                         &data, sizeof(data))) == SEOS_SUCCESS)
+    {
+        client->keys.bytesWritten += sizeof(data);
+    }
+
+    return err;
 }
 
 int run()
