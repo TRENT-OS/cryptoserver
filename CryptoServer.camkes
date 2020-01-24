@@ -21,6 +21,15 @@ struct partition_cat {
     partition_config partition[];
 }
 
+struct clientConfig {
+    int allowedIds[];
+}
+
+struct serverConfig {
+    int numClients;
+    clientConfig clients[];
+}
+
 component CryptoServer {
     control;
 
@@ -41,6 +50,10 @@ component CryptoServer {
     uses        ChanMuxInInf                ChanMuxRpc;
     consumes    DataAvailableEvent          ChanMuxSignal_dataAvailable;
 
+    // For file system
     attribute   disk_info                   disk_information;
     attribute   partition_cat               partition_conf;
+
+    // Configure clients connected to CryptoServer
+    attribute   serverConfig                config;
 }

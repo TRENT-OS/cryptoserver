@@ -109,14 +109,6 @@ entropy(
     return 0;
 }
 
-static bool
-hasAccess(
-    const unsigned int userId,
-    const unsigned int ownerId)
-{
-    return true;
-}
-
 /*
  * Here we map the RPC client to his respective data structures. What is important
  * to understand is that the CryptoServer offers TWO interfaces:
@@ -312,8 +304,9 @@ CryptoServer_loadKey(
         return SEOS_ERROR_INVALID_PARAMETER;
     }
 
-    // Check if we have access to the key of that owner
-    if (!hasAccess(client->id, ownerId))
+    // Check if we have access to the key of that owner; a zero indicates NO ACCES
+    // anything else allows it.
+    if (config.clients[ownerId - 1].allowedIds[client->id - 1] == 0)
     {
         return SEOS_ERROR_OPERATION_DENIED;
     }
@@ -392,6 +385,13 @@ int run()
         .impl.lib.rng.entropy = entropy,
         .server.dataPort = CRYPTO_DATAPORT
     };
+
+    // Make sure we don't exceed our limit
+    Debug_ASSERT(config.numClients <= CRYPTO_CLIENTS_MAX);
+    // Make sure we have as many COLUMNS in the first row as we have clients
+    Debug_ASSERT(config.numClients == sizeof(config.clients[0].allowedIds) / sizeof(int));
+    // Make sure we have as many ROWS in the matrix as we have clients
+    Debug_ASSERT(config.numClients == sizeof(config.clients) / sizeof(config.clients[0]));
 
     if ((err = initFileSystem(&serverState.fs)) != SEOS_SUCCESS)
     {
