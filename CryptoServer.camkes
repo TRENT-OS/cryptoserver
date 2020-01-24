@@ -1,0 +1,46 @@
+/**
+ * Copyright (C) 2019, Hensoldt Cyber GmbH
+ */
+
+import "../ChanMux/ChanMuxInf.camkes";
+
+import <seos_if_seosCryptoRpcServer.camkes>;
+import <seos_if_cryptoServer.camkes>;
+
+struct disk_info {
+    int disk_size;
+    int block_size_default;
+}
+
+struct partition_config {
+    string partition_name;
+    int partition_size;
+}
+
+struct partition_cat {
+    partition_config partition[];
+}
+
+component CryptoServer {
+    control;
+
+    // CryptoServer has a set-up phase, only after that clients can use it. We signal
+    // "readyness" to all potentially waiting RPC threads so they can wait for that.
+    emits       ServerReady                 serverInitDone;
+    consumes    ServerReady                 initDone;
+
+    // Crypto API interface, interface threads wait for ServerReady
+    dataport    Buf                         SeosCryptoDataport;
+    provides    seos_if_seosCryptoRpcServer SeosCryptoRpcServer;
+
+    // CryptoServer interface, interface threads wait for ServerReady
+    provides    seos_if_cryptoServer        CryptoServer;
+
+    // ChanMux for KeyStore NVM communication
+    dataport    Buf                         chanMuxDataPort;
+    uses        ChanMuxInInf                ChanMuxRpc;
+    consumes    DataAvailableEvent          ChanMuxSignal_dataAvailable;
+
+    attribute   disk_info                   disk_information;
+    attribute   partition_cat               partition_conf;
+}
