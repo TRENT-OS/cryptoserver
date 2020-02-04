@@ -49,10 +49,8 @@
  * IDs must be same for for each interface user on both interfaces, see also
  * the comment below.
  */
-extern unsigned int CryptoServer_get_sender_id(
-    void);
-extern unsigned int SeosCryptoRpcServer_get_sender_id(
-    void);
+seL4_Word CryptoServer_get_sender_id(void);
+seL4_Word SeosCryptoRpcServer_get_sender_id(void);
 
 typedef struct
 {
@@ -127,8 +125,6 @@ entropy(
  * The way to make sure both IDs are the same, is to explicitly assign the IDs
  * in a configuration:
  *
- * NOTE: IDs must start at 1!!
- *
  *  assembly {
  *      composition {
  *          component   TestApp_1   testApp_1;
@@ -136,52 +132,39 @@ entropy(
  *          ...
  *      }
  *      configuration{
- *          testApp_1.CryptoServer_attributes           = 1;
- *          testApp_1.SeosCryptoRpcServer_attributes    = 1;
- *          testApp_2.CryptoServer_attributes           = 2;
- *          testApp_2.SeosCryptoRpcServer_attributes    = 2;
+ *          testApp_1.CryptoServer_attributes           = 0;
+ *          testApp_1.SeosCryptoRpcServer_attributes    = 0;
+ *          testApp_2.CryptoServer_attributes           = 1;
+ *          testApp_2.SeosCryptoRpcServer_attributes    = 1;
  *      }
  *  }
  */
 
 static CryptoServer_Client*
-CryptoServer_getClient()
+getClient(
+    seL4_Word id)
 {
-    unsigned int id = CryptoServer_get_sender_id();
-    CryptoServer_Client* client;
-
+    // Before we acces the server state, make sure it is initialized. If not, we
+    // wait for the run-thread to send the initDone signal!
     if (!serverState.initialized)
     {
         initDone_wait();
     }
 
-    client = NULL;
-    if (id > 0 && id <= CRYPTO_CLIENTS_MAX)
-    {
-        // External IDs start at 1..
-        client = &serverState.clients[id - 1];
-        if (client->id != id)
-        {
-            client = NULL;
-        }
-    }
+    return (id >= config.numClients) ? NULL :
+           (serverState.clients[id].id == id) ? &serverState.clients[id] : NULL;
+}
 
-    return client;
+static CryptoServer_Client*
+CryptoServer_getClient()
+{
+    return getClient(CryptoServer_get_sender_id());
 }
 
 static CryptoServer_Client*
 SeosCryptoRpcServer_getClient()
 {
-    unsigned int id = SeosCryptoRpcServer_get_sender_id();
-
-    if (!serverState.initialized)
-    {
-        initDone_wait();
-    }
-
-    // IDs start at 1..
-    return (id > 0 && id <= CRYPTO_CLIENTS_MAX) ?
-           &serverState.clients[id - 1] : NULL;
+    return getClient(SeosCryptoRpcServer_get_sender_id());
 }
 
 static seos_err_t
@@ -280,7 +263,7 @@ SeosCryptoRpcServer_getSeosCryptoApi(
 
 seos_err_t
 CryptoServer_loadKey(
-    unsigned int                 ownerId,
+    seL4_Word                    ownerId,
     const char*                  name,
     SeosCryptoApi_Key_RemotePtr* ptr)
 {
@@ -290,31 +273,32 @@ CryptoServer_loadKey(
     size_t dataLen = sizeof(data);
     SeosCryptoApi_Key myKey;
 
-    if ((client = CryptoServer_getClient()) == NULL)
+    if ((owner = getClient(ownerId)) == NULL)
     {
-        return SEOS_ERROR_NOT_FOUND;
+        return SEOS_ERROR_INVALID_PARAMETER;
     }
     else if (strlen(name) == 0 || strlen(name) > KEYSTORE_NAME_MAX)
     {
         return SEOS_ERROR_INVALID_PARAMETER;
     }
 
-    if (!(ownerId > 0 && ownerId <= CRYPTO_CLIENTS_MAX))
+    if ((client = CryptoServer_getClient()) == NULL)
     {
-        return SEOS_ERROR_INVALID_PARAMETER;
+        return SEOS_ERROR_NOT_FOUND;
     }
 
     // Check if we have access to the key of that owner; a zero indicates NO ACCES
     // anything else allows it.
-    if (config.clients[ownerId - 1].allowedIds[client->id - 1] == 0)
+    if (config.clients[owner->id].allowedIds[client->id] == 0)
     {
-        return SEOS_ERROR_OPERATION_DENIED;
+        Debug_LOG_WARNING("Client with ID=%i failed to access the keystore of ID=%i",
+                          client->id, owner->id);
+        return SEOS_ERROR_ACCESS_DENIED;
     }
 
     // Here we access the data stored for another client; however, since all
     // RPC calls are serialized, we cannot have a race-condition because there
     // is only one RPC client active at a time.
-    owner =  &serverState.clients[ownerId - 1];
     if ((err = SeosKeyStoreApi_getKey(owner->keys.context, name, &data,
                                       &dataLen)) != SEOS_SUCCESS)
     {
@@ -398,12 +382,10 @@ int run()
         return err;
     }
 
-    for (size_t i = 0; i < CRYPTO_CLIENTS_MAX; i++)
+    for (size_t i = 0; i < config.numClients; i++)
     {
         client = &serverState.clients[i];
-
-        // The ID assigned to the interface starts with 1..
-        client->id = i + 1;
+        client->id = i;
 
         // Set up an instance of the Crypto API for each client which is then
         // accessed via its RPC interface
