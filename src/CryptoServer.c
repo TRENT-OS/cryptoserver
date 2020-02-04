@@ -25,18 +25,24 @@
 // Defines for ChanMux
 #define CHANMUX_NVM_CHANNEL 6
 #define CHANMUX_NVM_DATAPORT chanMuxDataPort
-// Defines for Crypto
+
 #define CRYPTO_DATAPORT SeosCryptoDataport
-// Defines for CryptoServer
+// Allow at most this amount of clients
 #define CRYPTO_CLIENTS_MAX 16
-// Defines for single partition
-#define PARTITION_SIZE ((32768*2+100) * 512)
-#define PARTITION_ID 0
-#define PARTITION_MODE (DISK_IO | SEOS_FS_TYPE_FAT)
-#define PARTITION_TYPE FS_FAT32
-#define PARTITION_FORMAT FS_PARTITION_OVERWRITE_CREATE
+
 // Maximum length of keys with FAT32 as FS
 #define KEYSTORE_NAME_MAX 8
+
+// Partition type to use
+#define PARTITION_FORMAT FS_FAT32
+// Minimum size for the partition (here for FAT32)
+#define PARTITION_MIN_SIZE (65525*512)
+//
+// FIXME: Improve the size value calculations once the new pm is available;
+//        these values here (together with the partition_size values in the
+//        configuration) are all guesswork..
+//
+#define PARTITION_SIZE PARTITION_MIN_SIZE + (1000*512)
 
 /*
  * These are auto-generated based on interface names; they give unique ID
@@ -57,6 +63,8 @@ typedef struct
     SeosKeyStoreCtx* context;
     SeosKeyStore store;
     SeosCryptoApi crypto;
+    hPartition_t partition;
+    SeosFileStreamFactory fileStream;
     size_t bytesWritten;
 } CryptoServer_KeyStore;
 
@@ -75,8 +83,6 @@ typedef struct
         char buffer[PAGE_SIZE];
     } proxy;
     ChanMuxClient chanMux;
-    hPartition_t partition;
-    SeosFileStreamFactory fileStream;
 } CryptoServer_FileSystem;
 
 typedef struct
@@ -172,6 +178,8 @@ static seos_err_t
 initFileSystem(
     CryptoServer_FileSystem* fs)
 {
+    pm_disk_data_t disk;
+
     // Setup ChanMux -> Proxy to write to QUEMU host for persistence
     if (!ChanMuxClient_ctor(&fs->chanMux,
                             CHANMUX_NVM_CHANNEL, CHANMUX_NVM_DATAPORT) ||
@@ -182,27 +190,16 @@ initFileSystem(
         return SEOS_ERROR_GENERIC;
     }
 
-    // Set up one partition and format it with FAT32
+    // Set up the partition manager
     if (api_pm_partition_manager_init(&fs->proxy.nvm) != SEOS_PM_SUCCESS ||
         partition_io_layer_partition_init() != SEOS_FS_SUCCESS ||
-        partition_io_layer_partition_register(PARTITION_ID, PARTITION_MODE,
-                                              0) != SEOS_FS_SUCCESS ||
-        partition_io_layer_partition_create_fs(PARTITION_ID, PARTITION_TYPE,
-                                               PARTITION_SIZE,
-                                               0, 0, 0, 0, 0,
-                                               PARTITION_FORMAT) != SEOS_FS_SUCCESS)
+        partition_manager_get_info_disk(&disk) != SEOS_PM_SUCCESS)
     {
-        Debug_LOG_ERROR("Failed to set up partition");
         return SEOS_ERROR_GENERIC;
     }
 
-    // Open the partition and assign it to a filestream factory
-    if ((fs->partition = partition_open(PARTITION_ID)) == NULL ||
-        !SeosFileStreamFactory_ctor(&fs->fileStream, fs->partition))
-    {
-        Debug_LOG_ERROR("Failed to open partition and FileStreamFactory");
-        return SEOS_ERROR_GENERIC;
-    }
+    // Make sure we have as many partitions as we have clients
+    Debug_ASSERT(config.numClients == disk.partition_count);
 
     return SEOS_SUCCESS;
 }
@@ -214,17 +211,13 @@ initKeyStore(
     CryptoServer_KeyStore*   ks)
 {
     seos_err_t err;
-    char name[16];
-    SeosCryptoApi_Config localCfg =
-    {
+    pm_partition_data_t partition;
+    SeosCryptoApi_Config localCfg = {
         .mode = SeosCryptoApi_Mode_LIBRARY,
         .mem.malloc = malloc,
         .mem.free = free,
         .impl.lib.rng.entropy = entropy,
     };
-
-    // Create a unique name for each key store instance
-    snprintf(name, sizeof(name), "keystore_%02d", index);
 
     // We need an instance of the Crypto API for the keystore for hashing etc..
     if ((err = SeosCryptoApi_init(&ks->crypto, &localCfg)) != SEOS_SUCCESS)
@@ -232,8 +225,42 @@ initKeyStore(
         return err;
     }
 
-    if ((err = SeosKeyStore_init(&ks->store, &fs->fileStream.parent, &ks->crypto,
-                                 name)) != SEOS_SUCCESS)
+    // Read partition info to get the internal ID
+    if (partition_manager_get_info_partition(index, &partition) != SEOS_PM_SUCCESS)
+    {
+        Debug_LOG_ERROR("Failed to get partition info.");
+        return SEOS_ERROR_GENERIC;
+    }
+
+    // Register partition
+    if (partition_io_layer_partition_register(partition.partition_id,
+                                              (DISK_IO | SEOS_FS_TYPE_FAT), 0) != SEOS_FS_SUCCESS)
+    {
+        Debug_LOG_ERROR("Failed to register partition.");
+        return SEOS_ERROR_GENERIC;
+    }
+
+    // Write the filesystem header in each partition.
+    if (partition_io_layer_partition_create_fs(partition.partition_id,
+                                               PARTITION_FORMAT,
+                                               PARTITION_SIZE,
+                                               0, 0, 0, 0, 0,
+                                               FS_PARTITION_OVERWRITE_CREATE) != SEOS_FS_SUCCESS)
+    {
+        Debug_LOG_ERROR("Failed to create filesystem.");
+        return SEOS_ERROR_GENERIC;
+    }
+
+    // Open the partition and assign it to a filestream factory
+    if ((ks->partition = partition_open(partition.partition_id)) == NULL ||
+        !SeosFileStreamFactory_ctor(&ks->fileStream, ks->partition))
+    {
+        Debug_LOG_ERROR("Failed to open partition or create FileStreamFactory");
+        return SEOS_ERROR_GENERIC;
+    }
+
+    if ((err = SeosKeyStore_init(&ks->store, &ks->fileStream.parent, &ks->crypto,
+                                 "keystore")) != SEOS_SUCCESS)
     {
         return err;
     }
