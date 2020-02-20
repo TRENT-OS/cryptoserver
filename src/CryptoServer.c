@@ -182,7 +182,9 @@ initFileSystem(
 
     // Setup ChanMux -> Proxy to write to QUEMU host for persistence
     if (!ChanMuxClient_ctor(&fs->chanMux,
-                            CHANMUX_NVM_CHANNEL, CHANMUX_NVM_DATAPORT) ||
+                            CHANMUX_NVM_CHANNEL,
+                            CHANMUX_NVM_DATAPORT,
+                            CHANMUX_NVM_DATAPORT) ||
         !ProxyNVM_ctor(&fs->proxy.nvm, &fs->chanMux, fs->proxy.buffer,
                        sizeof(fs->proxy.buffer)))
     {
