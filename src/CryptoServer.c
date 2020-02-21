@@ -52,8 +52,8 @@
  * individually, when following this convention:
  *   <interface_user>.<interface>_attributes = ID
  *
- * IDs must be same for for each interface user on both interfaces, see also
- * the comment below.
+ * IDs must be same for each interface user on both interfaces, see also the
+ * comment below.
  */
 seL4_Word CryptoServer_get_sender_id(void);
 seL4_Word SeosCryptoRpcServer_get_sender_id(void);
