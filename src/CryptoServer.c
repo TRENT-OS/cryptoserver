@@ -33,17 +33,6 @@
 // Maximum length of keys with FAT32 as FS
 #define KEYSTORE_NAME_MAX 8
 
-// Partition type to use
-#define PARTITION_FORMAT FS_FAT32
-// Minimum size for the partition (here for FAT32)
-#define PARTITION_MIN_SIZE (65525*512)
-//
-// FIXME: Improve the size value calculations once the new pm is available;
-//        these values here (together with the partition_size values in the
-//        configuration) are all guesswork..
-//
-#define PARTITION_SIZE PARTITION_MIN_SIZE + (1000*512)
-
 /*
  * These are auto-generated based on interface names; they give unique ID
  * assigned to the user of the interface.
@@ -193,15 +182,17 @@ initFileSystem(
     }
 
     // Set up the partition manager
-    if (api_pm_partition_manager_init(&fs->proxy.nvm) != SEOS_PM_SUCCESS ||
-        partition_io_layer_partition_init() != SEOS_FS_SUCCESS ||
-        partition_manager_get_info_disk(&disk) != SEOS_PM_SUCCESS)
+    if (partition_manager_init(&fs->proxy.nvm) != SEOS_PM_SUCCESS ||
+        partition_manager_get_info_disk(&disk) != SEOS_PM_SUCCESS) 
     {
+        Debug_LOG_ERROR("Failed to init pm");
         return SEOS_ERROR_GENERIC;
     }
 
     // Make sure we have as many partitions as we have clients
     Debug_ASSERT(config.numClients == disk.partition_count);
+
+    Debug_LOG_DEBUG("initFileSystem succesful");
 
     return SEOS_SUCCESS;
 }
@@ -214,6 +205,7 @@ initKeyStore(
 {
     seos_err_t err;
     pm_partition_data_t partition;
+
     SeosCryptoApi_Config localCfg = {
         .mode = SeosCryptoApi_Mode_LIBRARY,
         .mem.malloc = malloc,
@@ -234,28 +226,46 @@ initKeyStore(
         return SEOS_ERROR_GENERIC;
     }
 
-    // Register partition
-    if (partition_io_layer_partition_register(partition.partition_id,
-                                              (DISK_IO | SEOS_FS_TYPE_FAT), 0) != SEOS_FS_SUCCESS)
+    // Initialize the partition with RW access
+    if(partition_init(partition.partition_id, 0) != SEOS_FS_SUCCESS)
     {
-        Debug_LOG_ERROR("Failed to register partition.");
+        Debug_LOG_ERROR("Failed to init partition.");
         return SEOS_ERROR_GENERIC;
     }
 
-    // Write the filesystem header in each partition.
-    if (partition_io_layer_partition_create_fs(partition.partition_id,
-                                               PARTITION_FORMAT,
-                                               PARTITION_SIZE,
-                                               0, 0, 0, 0, 0,
-                                               FS_PARTITION_OVERWRITE_CREATE) != SEOS_FS_SUCCESS)
+    // Open the partition
+    ks->partition = partition_open(partition.partition_id);
+    if(!is_valid_partition_handle(ks->partition))
+    {
+        Debug_LOG_ERROR("Failed to open partition.");
+        return SEOS_ERROR_GENERIC;
+    }
+
+    // Create FS on partition
+    if(partition_fs_create(
+                ks->partition,
+                FS_FORMAT,
+                partition.partition_size,
+                0,  // default value: size of sector:   512
+                0,  // default value: size of cluster:  512
+                0,  // default value: reserved sectors count: FAT12/FAT16 = 1; FAT32 = 3
+                0,  // default value: count file/dir entries: FAT12/FAT16 = 16; FAT32 = 0
+                0,  // default value: count header sectors: 512
+                FS_PARTITION_OVERWRITE_CREATE) != SEOS_FS_SUCCESS)
     {
         Debug_LOG_ERROR("Failed to create filesystem.");
-        return SEOS_ERROR_GENERIC;
+        return SEOS_ERROR_GENERIC;       
+    } 
+
+    // Mount the FS on the partition
+    if(partition_fs_mount(ks->partition) != SEOS_FS_SUCCESS)
+    {
+        Debug_LOG_ERROR("Failed to mount partition with filesystem.");
+        return SEOS_ERROR_GENERIC;         
     }
 
     // Open the partition and assign it to a filestream factory
-    if ((ks->partition = partition_open(partition.partition_id)) == NULL ||
-        !SeosFileStreamFactory_ctor(&ks->fileStream, ks->partition))
+    if (!SeosFileStreamFactory_ctor(&ks->fileStream, ks->partition))
     {
         Debug_LOG_ERROR("Failed to open partition or create FileStreamFactory");
         return SEOS_ERROR_GENERIC;
@@ -436,6 +446,7 @@ int run()
         {
             return err;
         }
+
         // Set up keystore
         if ((err = initKeyStore(&serverState.fs, i, &client->keys)) != SEOS_SUCCESS)
         {

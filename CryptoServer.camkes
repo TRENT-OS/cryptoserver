@@ -12,15 +12,6 @@ struct disk_info {
     int block_size_default;
 }
 
-struct partition_config {
-    string partition_name;
-    int partition_size;
-}
-
-struct partition_cat {
-    partition_config partition[];
-}
-
 struct clientConfig {
     int storageLimit;
     int allowedIds[];
@@ -53,7 +44,6 @@ component CryptoServer {
 
     // For file system
     attribute   disk_info                   disk_information;
-    attribute   partition_cat               partition_conf;
 
     // Configure clients connected to CryptoServer
     attribute   serverConfig                config;
