@@ -42,9 +42,6 @@ component CryptoServer {
     uses        ChanMuxInInf                ChanMuxRpc;
     consumes    DataAvailableEvent          ChanMuxSignal_dataAvailable;
 
-    // For file system
-    attribute   disk_info                   disk_information;
-
     // Configure clients connected to CryptoServer
     attribute   serverConfig                config;
 }
