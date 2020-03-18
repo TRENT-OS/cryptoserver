@@ -45,13 +45,13 @@
  * comment below.
  */
 seL4_Word CryptoServer_get_sender_id(void);
-seL4_Word SeosCryptoRpcServer_get_sender_id(void);
+seL4_Word SeosCryptoRpc_Server_get_sender_id(void);
 
 typedef struct
 {
     SeosKeyStoreCtx* context;
     SeosKeyStore store;
-    SeosCryptoApi crypto;
+    SeosCryptoApiH hCrypto;
     hPartition_t partition;
     SeosFileStreamFactory fileStream;
     size_t bytesWritten;
@@ -60,7 +60,7 @@ typedef struct
 typedef struct
 {
     unsigned int id;
-    SeosCryptoApi crypto;
+    SeosCryptoApiH hCrypto;
     CryptoServer_KeyStore keys;
 } CryptoServer_Client;
 
@@ -108,7 +108,7 @@ entropy(
  * to understand is that the CryptoServer offers TWO interfaces:
  * 1. The CryptoServer interface, as explicitly defined in the relevant CAMKES
  *    file and as visible in CrytpoServer.h and this file.
- * 2. The SeosCryptoRpcServer interface, due to the fact that this component is
+ * 2. The SeosCryptoRpc_Server interface, due to the fact that this component is
  *    linked with SEOS_CRYPTO_WITH_RCP_SERVER and thus contains the Crypto API
  *    LIB and RPC Server code.
  * Mapping to the data structure is based on the numeric "sender ID" which each
@@ -116,7 +116,7 @@ entropy(
  * sender IDs are the same for each RPC client ON BOTH INTERFACES. If it is not
  * so, one component initializes data structures with ID=1 via the CryptoServer
  * interface, and then uses data structures with ID=2 (or whatever) via the
- * SeosCryptoRpcServer interface! This mismatch leads to problems.
+ * SeosCryptoRpc_Server interface! This mismatch leads to problems.
  *
  * The way to make sure both IDs are the same, is to explicitly assign the IDs
  * in a configuration:
@@ -129,9 +129,9 @@ entropy(
  *      }
  *      configuration{
  *          testApp_1.CryptoServer_attributes           = 0;
- *          testApp_1.SeosCryptoRpcServer_attributes    = 0;
+ *          testApp_1.SeosCryptoRpc_Server_attributes   = 0;
  *          testApp_2.CryptoServer_attributes           = 1;
- *          testApp_2.SeosCryptoRpcServer_attributes    = 1;
+ *          testApp_2.SeosCryptoRpc_Server_attributes   = 1;
  *      }
  *  }
  */
@@ -158,9 +158,9 @@ CryptoServer_getClient()
 }
 
 static CryptoServer_Client*
-SeosCryptoRpcServer_getClient()
+SeosCryptoRpc_Server_getClient()
 {
-    return getClient(SeosCryptoRpcServer_get_sender_id());
+    return getClient(SeosCryptoRpc_Server_get_sender_id());
 }
 
 static seos_err_t
@@ -183,7 +183,7 @@ initFileSystem(
 
     // Set up the partition manager
     if (partition_manager_init(&fs->proxy.nvm) != SEOS_PM_SUCCESS ||
-        partition_manager_get_info_disk(&disk) != SEOS_PM_SUCCESS) 
+        partition_manager_get_info_disk(&disk) != SEOS_PM_SUCCESS)
     {
         Debug_LOG_ERROR("Failed to init pm");
         return SEOS_ERROR_GENERIC;
@@ -205,8 +205,8 @@ initKeyStore(
 {
     seos_err_t err;
     pm_partition_data_t partition;
-
-    SeosCryptoApi_Config localCfg = {
+    SeosCryptoApi_Config localCfg =
+    {
         .mode = SeosCryptoApi_Mode_LIBRARY,
         .mem.malloc = malloc,
         .mem.free = free,
@@ -214,7 +214,7 @@ initKeyStore(
     };
 
     // We need an instance of the Crypto API for the keystore for hashing etc..
-    if ((err = SeosCryptoApi_init(&ks->crypto, &localCfg)) != SEOS_SUCCESS)
+    if ((err = SeosCryptoApi_init(&ks->hCrypto, &localCfg)) != SEOS_SUCCESS)
     {
         return err;
     }
@@ -227,7 +227,7 @@ initKeyStore(
     }
 
     // Initialize the partition with RW access
-    if(partition_init(partition.partition_id, 0) != SEOS_FS_SUCCESS)
+    if (partition_init(partition.partition_id, 0) != SEOS_FS_SUCCESS)
     {
         Debug_LOG_ERROR("Failed to init partition.");
         return SEOS_ERROR_GENERIC;
@@ -235,33 +235,33 @@ initKeyStore(
 
     // Open the partition
     ks->partition = partition_open(partition.partition_id);
-    if(!is_valid_partition_handle(ks->partition))
+    if (!is_valid_partition_handle(ks->partition))
     {
         Debug_LOG_ERROR("Failed to open partition.");
         return SEOS_ERROR_GENERIC;
     }
 
     // Create FS on partition
-    if(partition_fs_create(
-                ks->partition,
-                FS_FORMAT,
-                partition.partition_size,
-                0,  // default value: size of sector:   512
-                0,  // default value: size of cluster:  512
-                0,  // default value: reserved sectors count: FAT12/FAT16 = 1; FAT32 = 3
-                0,  // default value: count file/dir entries: FAT12/FAT16 = 16; FAT32 = 0
-                0,  // default value: count header sectors: 512
-                FS_PARTITION_OVERWRITE_CREATE) != SEOS_FS_SUCCESS)
+    if (partition_fs_create(
+            ks->partition,
+            FS_FORMAT,
+            partition.partition_size,
+            0,  // default value: size of sector:   512
+            0,  // default value: size of cluster:  512
+            0,  // default value: reserved sectors count: FAT12/FAT16 = 1; FAT32 = 3
+            0,  // default value: count file/dir entries: FAT12/FAT16 = 16; FAT32 = 0
+            0,  // default value: count header sectors: 512
+            FS_PARTITION_OVERWRITE_CREATE) != SEOS_FS_SUCCESS)
     {
         Debug_LOG_ERROR("Failed to create filesystem.");
-        return SEOS_ERROR_GENERIC;       
-    } 
+        return SEOS_ERROR_GENERIC;
+    }
 
     // Mount the FS on the partition
-    if(partition_fs_mount(ks->partition) != SEOS_FS_SUCCESS)
+    if (partition_fs_mount(ks->partition) != SEOS_FS_SUCCESS)
     {
         Debug_LOG_ERROR("Failed to mount partition with filesystem.");
-        return SEOS_ERROR_GENERIC;         
+        return SEOS_ERROR_GENERIC;
     }
 
     // Open the partition and assign it to a filestream factory
@@ -271,7 +271,7 @@ initKeyStore(
         return SEOS_ERROR_GENERIC;
     }
 
-    if ((err = SeosKeyStore_init(&ks->store, &ks->fileStream.parent, &ks->crypto,
+    if ((err = SeosKeyStore_init(&ks->store, &ks->fileStream.parent, ks->hCrypto,
                                  "keystore")) != SEOS_SUCCESS)
     {
         return err;
@@ -281,7 +281,7 @@ initKeyStore(
     return SEOS_SUCCESS;
 }
 
-// Public Functions used only by SeosCryptoRpcServer ---------------------------
+// Public Functions used only by SeosCryptoRpc_Server ---------------------------
 
 /*
  * This function is called from the RPC server of the Crypto API to find the
@@ -289,30 +289,30 @@ initKeyStore(
  * tells it to use. This is done to prevent API clients from accessing contexts
  * that don't belong to them.
  *
- * Note that this uses SeosCryptoRpcServer_getClient, which WAITs until the
+ * Note that this uses SeosCryptoRpc_Server_getClient, which WAITs until the
  * serverState struct has been initialized!!
  */
-SeosCryptoApi*
-SeosCryptoRpcServer_getSeosCryptoApi(
+SeosCryptoApiH
+SeosCryptoRpc_Server_getSeosCryptoApi(
     void)
 {
-    CryptoServer_Client* client = SeosCryptoRpcServer_getClient();
-    return (NULL == client) ? NULL : &client->crypto;
+    CryptoServer_Client* client = SeosCryptoRpc_Server_getClient();
+    return (NULL == client) ? NULL : client->hCrypto;
 }
 
 // Public Functions ------------------------------------------------------------
 
 seos_err_t
-CryptoServer_loadKey(
-    seL4_Word                    ownerId,
-    const char*                  name,
-    SeosCryptoApi_Key_RemotePtr* ptr)
+CryptoServer_RPC_loadKey(
+    SeosCryptoLib_Object* ptr,
+    seL4_Word             ownerId,
+    const char*           name)
 {
     seos_err_t err;
     CryptoServer_Client* client, *owner;
     SeosCryptoApi_Key_Data data;
     size_t dataLen = sizeof(data);
-    SeosCryptoApi_Key myKey;
+    SeosCryptoApi_KeyH hMyKey;
 
     if ((owner = getClient(ownerId)) == NULL)
     {
@@ -347,26 +347,26 @@ CryptoServer_loadKey(
     }
 
     // Import key data into the remote Crypto API, so it can be used there.
-    if ((err = SeosCryptoApi_Key_import(&client->crypto, &myKey,
+    if ((err = SeosCryptoApi_Key_import(&hMyKey, client->hCrypto,
                                         &data)) != SEOS_SUCCESS)
     {
         return err;
     }
 
     // Send back only the pointer to the LIB Key object
-    *ptr = SeosCryptoApi_Key_getPtr(&myKey);
+    *ptr = SeosCryptoApi_getObject(hMyKey);
 
     return SEOS_SUCCESS;
 }
 
 seos_err_t
-CryptoServer_storeKey(
-    const char*       name,
-    SeosCryptoApi_Key key)
+CryptoServer_RPC_storeKey(
+    SeosCryptoLib_Object ptr,
+    const char*          name)
 {
     seos_err_t err;
     SeosCryptoApi_Key_Data data;
-    SeosCryptoApi_Key myKey;
+    SeosCryptoApi_KeyH hMyKey;
     CryptoServer_Client* client;
 
     if ((client = CryptoServer_getClient()) == NULL)
@@ -380,8 +380,8 @@ CryptoServer_storeKey(
 
     // We get an API Key object from the RPC client, which has the API context of
     // the CLIENT attached to it. This needs to be changed to the local API context.
-    if ((err = SeosCryptoApi_Key_migrate(&client->crypto, &myKey,
-                                         SeosCryptoApi_Key_getPtr(&key))) != SEOS_SUCCESS)
+    if ((err = SeosCryptoApi_migrateObject(&hMyKey, client->hCrypto,
+                                           ptr)) != SEOS_SUCCESS)
     {
         return err;
     }
@@ -389,7 +389,7 @@ CryptoServer_storeKey(
     // Now we can use that key object and export its data; we can always do this
     // since we go through the API which uses the RPC server's LIB instance (the
     // same the RPC client refers to from afar)..
-    if ((err = SeosCryptoApi_Key_export(&myKey, &data)) != SEOS_SUCCESS)
+    if ((err = SeosCryptoApi_Key_export(hMyKey, &data)) != SEOS_SUCCESS)
     {
         return err;
     }
@@ -415,7 +415,8 @@ int run()
 {
     seos_err_t err;
     CryptoServer_Client* client;
-    SeosCryptoApi_Config remoteCfg = {
+    SeosCryptoApi_Config remoteCfg =
+    {
         .mode = SeosCryptoApi_Mode_RPC_SERVER_WITH_LIBRARY,
         .mem.malloc = malloc,
         .mem.free = free,
@@ -426,9 +427,11 @@ int run()
     // Make sure we don't exceed our limit
     Debug_ASSERT(config.numClients <= CRYPTO_CLIENTS_MAX);
     // Make sure we have as many COLUMNS in the first row as we have clients
-    Debug_ASSERT(config.numClients == sizeof(config.clients[0].allowedIds) / sizeof(int));
+    Debug_ASSERT(config.numClients == sizeof(config.clients[0].allowedIds) / sizeof(
+                     int));
     // Make sure we have as many ROWS in the matrix as we have clients
-    Debug_ASSERT(config.numClients == sizeof(config.clients) / sizeof(config.clients[0]));
+    Debug_ASSERT(config.numClients == sizeof(config.clients) / sizeof(
+                     config.clients[0]));
 
     if ((err = initFileSystem(&serverState.fs)) != SEOS_SUCCESS)
     {
@@ -442,7 +445,7 @@ int run()
 
         // Set up an instance of the Crypto API for each client which is then
         // accessed via its RPC interface
-        if ((err = SeosCryptoApi_init(&client->crypto, &remoteCfg)) != SEOS_SUCCESS)
+        if ((err = SeosCryptoApi_init(&client->hCrypto, &remoteCfg)) != SEOS_SUCCESS)
         {
             return err;
         }
