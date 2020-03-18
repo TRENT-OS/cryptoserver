@@ -169,7 +169,7 @@ initFileSystem(
 {
     pm_disk_data_t disk;
 
-    // Setup ChanMux -> Proxy to write to QUEMU host for persistence
+    // Setup ChanMux -> Proxy to write to QEMU host for persistence
     if (!ChanMuxClient_ctor(&fs->chanMux,
                             CHANMUX_NVM_CHANNEL,
                             CHANMUX_NVM_DATAPORT,
