@@ -182,8 +182,8 @@ initFileSystem(
     }
 
     // Set up the partition manager
-    if (partition_manager_init(&fs->proxy.nvm) != SEOS_PM_SUCCESS ||
-        partition_manager_get_info_disk(&disk) != SEOS_PM_SUCCESS)
+    if (partition_manager_init(&fs->proxy.nvm) != SEOS_SUCCESS ||
+        partition_manager_get_info_disk(&disk) != SEOS_SUCCESS)
     {
         Debug_LOG_ERROR("Failed to init pm");
         return SEOS_ERROR_GENERIC;
@@ -220,14 +220,14 @@ initKeyStore(
     }
 
     // Read partition info to get the internal ID
-    if (partition_manager_get_info_partition(index, &partition) != SEOS_PM_SUCCESS)
+    if (partition_manager_get_info_partition(index, &partition) != SEOS_SUCCESS)
     {
         Debug_LOG_ERROR("Failed to get partition info.");
         return SEOS_ERROR_GENERIC;
     }
 
     // Initialize the partition with RW access
-    if (partition_init(partition.partition_id, 0) != SEOS_FS_SUCCESS)
+    if (partition_init(partition.partition_id, 0) != SEOS_SUCCESS)
     {
         Debug_LOG_ERROR("Failed to init partition.");
         return SEOS_ERROR_GENERIC;
@@ -251,14 +251,14 @@ initKeyStore(
             0,  // default value: reserved sectors count: FAT12/FAT16 = 1; FAT32 = 3
             0,  // default value: count file/dir entries: FAT12/FAT16 = 16; FAT32 = 0
             0,  // default value: count header sectors: 512
-            FS_PARTITION_OVERWRITE_CREATE) != SEOS_FS_SUCCESS)
+            FS_PARTITION_OVERWRITE_CREATE) != SEOS_SUCCESS)
     {
         Debug_LOG_ERROR("Failed to create filesystem.");
         return SEOS_ERROR_GENERIC;
     }
 
     // Mount the FS on the partition
-    if (partition_fs_mount(ks->partition) != SEOS_FS_SUCCESS)
+    if (partition_fs_mount(ks->partition) != SEOS_SUCCESS)
     {
         Debug_LOG_ERROR("Failed to mount partition with filesystem.");
         return SEOS_ERROR_GENERIC;
