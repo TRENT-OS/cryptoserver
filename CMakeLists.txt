@@ -13,8 +13,6 @@ seos_use_libs(
     SEOS_FILESYSTEM_SPIFFS
 )
 
-set(KEYSTORE_AS_COMPONENT ON CACHE BOOL "string")
-
 project(cryptoserver C)
 
 DeclareCAmkESComponent(CryptoServer
