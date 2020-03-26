@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.7.2)
 
 seos_use_libs(
     SEOS_LIBS
+    SEOS_CHANMUX
     SEOS_CRYPTO_WITH_RPC_SERVER
     SEOS_CRYPTO_IMPL_MBEDTLS
     SEOS_PARTITION_MANAGER
@@ -29,6 +30,8 @@ DeclareCAmkESComponent(CryptoServer
     LIBS
         seos_core_api
         seos_libs
+        chanmux_client
+        proxy_nvm
         seos_crypto_with_rpc_server
         seos_filesystem_fat
         seos_partition_manager
