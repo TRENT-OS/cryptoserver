@@ -332,7 +332,7 @@ CryptoServer_RPC_loadKey(
     // anything else allows it.
     if (config.clients[owner->id].allowedIds[client->id] == 0)
     {
-        Debug_LOG_WARNING("Client with ID=%i failed to access the keystore of ID=%i",
+        Debug_LOG_WARNING("Client with ID=%u failed to access the keystore of ID=%u",
                           client->id, owner->id);
         return SEOS_ERROR_ACCESS_DENIED;
     }
