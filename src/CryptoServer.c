@@ -33,6 +33,10 @@
 // Maximum length of keys with FAT32 as FS
 #define KEYSTORE_NAME_MAX 8
 
+// All the FS/KeyStore stuff have an underlying "parent" pointer for the "real"
+// object
+#define GET_PARENT_PTR(o) (&(o.parent))
+
 /*
  * These are auto-generated based on interface names; they give unique ID
  * assigned to the user of the interface.
@@ -171,33 +175,47 @@ initFileSystem(
     pm_disk_data_t disk;
 
     // Setup ChanMux -> Proxy to write to QEMU host for persistence
+    err = SEOS_ERROR_GENERIC;
     if (!ChanMuxClient_ctor(&fs->chanMux,
                             CHANMUX_NVM_CHANNEL,
                             CHANMUX_NVM_DATAPORT,
-                            CHANMUX_NVM_DATAPORT) ||
-        !ProxyNVM_ctor(&fs->proxy.nvm, &fs->chanMux, fs->proxy.buffer,
+                            CHANMUX_NVM_DATAPORT))
+    {
+        Debug_LOG_ERROR("Failed to init ChanMuxClient");
+        return err;
+    }
+
+    // Setup ChanMux -> Proxy to write to QEMU host for persistence
+    if (!ProxyNVM_ctor(&fs->proxy.nvm, &fs->chanMux, fs->proxy.buffer,
                        sizeof(fs->proxy.buffer)))
     {
-        Debug_LOG_ERROR("Failed to construct ChanMux-ProxyNVM cascade");
-        return SEOS_ERROR_GENERIC;
+        Debug_LOG_ERROR("Failed to init ProxyNVM");
+        goto err0;
     }
 
     // Set up partition manager
     if ((err = partition_manager_init(&fs->proxy.nvm)) != SEOS_SUCCESS)
     {
         Debug_LOG_ERROR("partition_manager_init() failed with %d", err);
-        return err;
+        goto err1;
     }
     if ((err = partition_manager_get_info_disk(&disk)) != SEOS_SUCCESS)
     {
         Debug_LOG_ERROR("partition_manager_get_info_disk() failed with %d", err);
-        return err;
+        goto err1;
     }
 
     // Make sure we have as many partitions as we have clients
     Debug_ASSERT(config.numClients == disk.partition_count);
 
     return SEOS_SUCCESS;
+
+err1:
+    ChanMuxClient_dtor(&fs->chanMux);
+err0:
+    ProxyNVM_dtor(GET_PARENT_PTR(fs->proxy.nvm));
+
+    return err;
 }
 
 static seos_err_t
@@ -228,22 +246,24 @@ initKeyStore(
                                                     &partition)) != SEOS_SUCCESS)
     {
         Debug_LOG_ERROR("partition_manager_get_info_partition() failed with %d", err);
-        return err;
+        goto err0;
     }
 
     // Initialize the partition with RW access
     if ((err = partition_init(partition.partition_id, 0)) != SEOS_SUCCESS)
     {
         Debug_LOG_ERROR("partition_init() failed with %d", err);
-        return err;
+        goto err0;
     }
+
 
     // Open the partition
     ks->partition = partition_open(partition.partition_id);
     if (!is_valid_partition_handle(ks->partition))
     {
         Debug_LOG_ERROR("Failed to open partition");
-        return SEOS_ERROR_GENERIC;
+        err = SEOS_ERROR_GENERIC;
+        goto err0;
     }
 
     // Create FS on partition
@@ -259,32 +279,44 @@ initKeyStore(
                    FS_PARTITION_OVERWRITE_CREATE)) != SEOS_SUCCESS)
     {
         Debug_LOG_ERROR("partition_fs_create() failed with %d", err);
-        return err;
+        goto err1;
     }
 
     // Mount the FS on the partition
     if ((err = partition_fs_mount(ks->partition)) != SEOS_SUCCESS)
     {
         Debug_LOG_ERROR("partition_fs_mount() failed with %d", err);
-        return err;
+        goto err1;
     }
 
     // Open the partition and assign it to a filestream factory
     if (!SeosFileStreamFactory_ctor(&ks->fileStream, ks->partition))
     {
         Debug_LOG_ERROR("Failed to create FileStreamFactory");
-        return SEOS_ERROR_GENERIC;
+        err = SEOS_ERROR_GENERIC;
+        goto err2;
     }
 
-    if ((err = SeosKeyStore_init(&ks->store, &ks->fileStream.parent, ks->hCrypto,
+    if ((err = SeosKeyStore_init(&ks->store, GET_PARENT_PTR(ks->fileStream), ks->hCrypto,
                                  "keystore")) != SEOS_SUCCESS)
     {
         Debug_LOG_ERROR("SeosKeyStore_init() failed with %d", err);
-        return err;
+        goto err3;
     }
-    ks->context = SeosKeyStore_TO_SEOS_KEY_STORE_CTX(&ks->store);
+    ks->context = GET_PARENT_PTR(ks->store);
 
     return SEOS_SUCCESS;
+
+err3:
+    SeosFileStreamFactory_dtor(GET_PARENT_PTR(ks->fileStream));
+err2:
+    partition_fs_unmount(ks->partition);
+err1:
+    partition_close(ks->partition);
+err0:
+    OS_Crypto_free(ks->hCrypto);
+
+    return err;
 }
 
 // Public Functions used only by OS_CryptoRpcServer ---------------------------
