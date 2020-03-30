@@ -167,6 +167,7 @@ static seos_err_t
 initFileSystem(
     CryptoServer_FileSystem* fs)
 {
+    seos_err_t err;
     pm_disk_data_t disk;
 
     // Setup ChanMux -> Proxy to write to QEMU host for persistence
@@ -181,18 +182,20 @@ initFileSystem(
         return SEOS_ERROR_GENERIC;
     }
 
-    // Set up the partition manager
-    if (partition_manager_init(&fs->proxy.nvm) != SEOS_SUCCESS ||
-        partition_manager_get_info_disk(&disk) != SEOS_SUCCESS)
+    // Set up partition manager
+    if ((err = partition_manager_init(&fs->proxy.nvm)) != SEOS_SUCCESS)
     {
-        Debug_LOG_ERROR("Failed to init pm");
-        return SEOS_ERROR_GENERIC;
+        Debug_LOG_ERROR("partition_manager_init() failed with %d", err);
+        return err;
+    }
+    if ((err = partition_manager_get_info_disk(&disk)) != SEOS_SUCCESS)
+    {
+        Debug_LOG_ERROR("partition_manager_get_info_disk() failed with %d", err);
+        return err;
     }
 
     // Make sure we have as many partitions as we have clients
     Debug_ASSERT(config.numClients == disk.partition_count);
-
-    Debug_LOG_DEBUG("initFileSystem succesful");
 
     return SEOS_SUCCESS;
 }
@@ -201,7 +204,7 @@ static seos_err_t
 initKeyStore(
     CryptoServer_FileSystem* fs,
     const uint8_t            index,
-    CryptoServer_KeyStore*   ks)
+    CryptoServer_KeyStore*    ks)
 {
     seos_err_t err;
     pm_partition_data_t partition;
@@ -216,64 +219,67 @@ initKeyStore(
     // We need an instance of the Crypto API for the keystore for hashing etc..
     if ((err = OS_Crypto_init(&ks->hCrypto, &localCfg)) != SEOS_SUCCESS)
     {
+        Debug_LOG_ERROR("OS_Crypto_init() failed with %d", err);
         return err;
     }
 
     // Read partition info to get the internal ID
-    if (partition_manager_get_info_partition(index, &partition) != SEOS_SUCCESS)
+    if ((err = partition_manager_get_info_partition(index,
+                                                    &partition)) != SEOS_SUCCESS)
     {
-        Debug_LOG_ERROR("Failed to get partition info.");
-        return SEOS_ERROR_GENERIC;
+        Debug_LOG_ERROR("partition_manager_get_info_partition() failed with %d", err);
+        return err;
     }
 
     // Initialize the partition with RW access
-    if (partition_init(partition.partition_id, 0) != SEOS_SUCCESS)
+    if ((err = partition_init(partition.partition_id, 0)) != SEOS_SUCCESS)
     {
-        Debug_LOG_ERROR("Failed to init partition.");
-        return SEOS_ERROR_GENERIC;
+        Debug_LOG_ERROR("partition_init() failed with %d", err);
+        return err;
     }
 
     // Open the partition
     ks->partition = partition_open(partition.partition_id);
     if (!is_valid_partition_handle(ks->partition))
     {
-        Debug_LOG_ERROR("Failed to open partition.");
+        Debug_LOG_ERROR("Failed to open partition");
         return SEOS_ERROR_GENERIC;
     }
 
     // Create FS on partition
-    if (partition_fs_create(
-            ks->partition,
-            FS_FORMAT,
-            partition.partition_size,
-            0,  // default value: size of sector:   512
-            0,  // default value: size of cluster:  512
-            0,  // default value: reserved sectors count: FAT12/FAT16 = 1; FAT32 = 3
-            0,  // default value: count file/dir entries: FAT12/FAT16 = 16; FAT32 = 0
-            0,  // default value: count header sectors: 512
-            FS_PARTITION_OVERWRITE_CREATE) != SEOS_SUCCESS)
+    if ((err = partition_fs_create(
+                   ks->partition,
+                   FS_FORMAT,
+                   partition.partition_size,
+                   0,  // default value: size of sector:   512
+                   0,  // default value: size of cluster:  512
+                   0,  // default value: reserved sectors count: FAT12/FAT16 = 1; FAT32 = 3
+                   0,  // default value: count file/dir entries: FAT12/FAT16 = 16; FAT32 = 0
+                   0,  // default value: count header sectors: 512
+                   FS_PARTITION_OVERWRITE_CREATE)) != SEOS_SUCCESS)
     {
-        Debug_LOG_ERROR("Failed to create filesystem.");
-        return SEOS_ERROR_GENERIC;
+        Debug_LOG_ERROR("partition_fs_create() failed with %d", err);
+        return err;
     }
 
     // Mount the FS on the partition
-    if (partition_fs_mount(ks->partition) != SEOS_SUCCESS)
+    if ((err = partition_fs_mount(ks->partition)) != SEOS_SUCCESS)
     {
-        Debug_LOG_ERROR("Failed to mount partition with filesystem.");
-        return SEOS_ERROR_GENERIC;
+        Debug_LOG_ERROR("partition_fs_mount() failed with %d", err);
+        return err;
     }
 
     // Open the partition and assign it to a filestream factory
     if (!SeosFileStreamFactory_ctor(&ks->fileStream, ks->partition))
     {
-        Debug_LOG_ERROR("Failed to open partition or create FileStreamFactory");
+        Debug_LOG_ERROR("Failed to create FileStreamFactory");
         return SEOS_ERROR_GENERIC;
     }
 
     if ((err = SeosKeyStore_init(&ks->store, &ks->fileStream.parent, ks->hCrypto,
                                  "keystore")) != SEOS_SUCCESS)
     {
+        Debug_LOG_ERROR("SeosKeyStore_init() failed with %d", err);
         return err;
     }
     ks->context = SeosKeyStore_TO_SEOS_KEY_STORE_CTX(&ks->store);
@@ -348,7 +354,7 @@ CryptoServer_RPC_loadKey(
 
     // Import key data into the remote Crypto API, so it can be used there.
     if ((err = OS_CryptoKey_import(&hMyKey, client->hCrypto,
-                                        &data)) != SEOS_SUCCESS)
+                                   &data)) != SEOS_SUCCESS)
     {
         return err;
     }
@@ -381,7 +387,7 @@ CryptoServer_RPC_storeKey(
     // We get an API Key object from the RPC client, which has the API context of
     // the CLIENT attached to it. This needs to be changed to the local API context.
     if ((err = OS_Crypto_migrateObject(&hMyKey, client->hCrypto,
-                                           ptr)) != SEOS_SUCCESS)
+                                       ptr)) != SEOS_SUCCESS)
     {
         return err;
     }
@@ -427,11 +433,11 @@ int run()
     // Make sure we don't exceed our limit
     Debug_ASSERT(config.numClients <= CRYPTO_CLIENTS_MAX);
     // Make sure we have as many COLUMNS in the first row as we have clients
-    Debug_ASSERT(config.numClients == sizeof(config.clients[0].allowedIds) / sizeof(
-                     int));
+    Debug_ASSERT(config.numClients == sizeof(config.clients[0].allowedIds) /
+                 sizeof(int));
     // Make sure we have as many ROWS in the matrix as we have clients
-    Debug_ASSERT(config.numClients == sizeof(config.clients) / sizeof(
-                     config.clients[0]));
+    Debug_ASSERT(config.numClients == sizeof(config.clients) /
+                 sizeof(config.clients[0]));
 
     if ((err = initFileSystem(&serverState.fs)) != SEOS_SUCCESS)
     {
