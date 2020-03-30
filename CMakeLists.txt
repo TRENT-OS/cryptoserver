@@ -18,7 +18,7 @@ project(cryptoserver C)
 
 DeclareCAmkESComponent(CryptoServer
     INCLUDES
-        src
+        inc
     SOURCES
         src/CryptoServer.c
     C_FLAGS

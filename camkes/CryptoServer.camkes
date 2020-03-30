@@ -4,7 +4,8 @@
 
 import <seos_if_chanMux.camkes>;
 import <if_OS_Crypto.camkes>;
-import <seos_if_cryptoServer.camkes>;
+
+import "if_CryptoServer.camkes";
 
 struct disk_info {
     int disk_size;
@@ -34,7 +35,7 @@ component CryptoServer {
     provides    if_OS_Crypto                OS_CryptoRpcServer;
 
     // CryptoServer interface, interface threads wait for ServerReady
-    provides    seos_if_cryptoServer        CryptoServer;
+    provides    if_CryptoServer             CryptoServer;
 
     // ChanMux for KeyStore NVM communication
     dataport    Buf                         chanMuxDataPort;
