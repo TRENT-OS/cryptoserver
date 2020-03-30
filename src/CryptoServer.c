@@ -3,7 +3,7 @@
  */
 
 // Crypto includes
-#include "SeosCryptoApi.h"
+#include "OS_Crypto.h"
 
 // KeyStore includes
 #include "SeosKeyStore.h"
@@ -45,13 +45,13 @@
  * comment below.
  */
 seL4_Word CryptoServer_get_sender_id(void);
-seL4_Word SeosCryptoRpc_Server_get_sender_id(void);
+seL4_Word OS_CryptoRpcServer_get_sender_id(void);
 
 typedef struct
 {
     SeosKeyStoreCtx* context;
     SeosKeyStore store;
-    SeosCryptoApiH hCrypto;
+    OS_Crypto_Handle_t hCrypto;
     hPartition_t partition;
     SeosFileStreamFactory fileStream;
     size_t bytesWritten;
@@ -60,7 +60,7 @@ typedef struct
 typedef struct
 {
     unsigned int id;
-    SeosCryptoApiH hCrypto;
+    OS_Crypto_Handle_t hCrypto;
     CryptoServer_KeyStore keys;
 } CryptoServer_Client;
 
@@ -108,7 +108,7 @@ entropy(
  * to understand is that the CryptoServer offers TWO interfaces:
  * 1. The CryptoServer interface, as explicitly defined in the relevant CAMKES
  *    file and as visible in CrytpoServer.h and this file.
- * 2. The SeosCryptoRpc_Server interface, due to the fact that this component is
+ * 2. The OS_CryptoRpcServer interface, due to the fact that this component is
  *    linked with SEOS_CRYPTO_WITH_RCP_SERVER and thus contains the Crypto API
  *    LIB and RPC Server code.
  * Mapping to the data structure is based on the numeric "sender ID" which each
@@ -116,7 +116,7 @@ entropy(
  * sender IDs are the same for each RPC client ON BOTH INTERFACES. If it is not
  * so, one component initializes data structures with ID=1 via the CryptoServer
  * interface, and then uses data structures with ID=2 (or whatever) via the
- * SeosCryptoRpc_Server interface! This mismatch leads to problems.
+ * OS_CryptoRpcServer interface! This mismatch leads to problems.
  *
  * The way to make sure both IDs are the same, is to explicitly assign the IDs
  * in a configuration:
@@ -128,10 +128,10 @@ entropy(
  *          ...
  *      }
  *      configuration{
- *          testApp_1.CryptoServer_attributes           = 0;
- *          testApp_1.SeosCryptoRpc_Server_attributes   = 0;
- *          testApp_2.CryptoServer_attributes           = 1;
- *          testApp_2.SeosCryptoRpc_Server_attributes   = 1;
+ *          testApp_1.CryptoServer_attributes         = 0;
+ *          testApp_1.OS_CryptoRpcServer_attributes   = 0;
+ *          testApp_2.CryptoServer_attributes         = 1;
+ *          testApp_2.OS_CryptoRpcServer_attributes   = 1;
  *      }
  *  }
  */
@@ -158,9 +158,9 @@ CryptoServer_getClient()
 }
 
 static CryptoServer_Client*
-SeosCryptoRpc_Server_getClient()
+OS_CryptoRpcServer_getClient()
 {
-    return getClient(SeosCryptoRpc_Server_get_sender_id());
+    return getClient(OS_CryptoRpcServer_get_sender_id());
 }
 
 static seos_err_t
@@ -205,16 +205,16 @@ initKeyStore(
 {
     seos_err_t err;
     pm_partition_data_t partition;
-    SeosCryptoApi_Config localCfg =
+    OS_Crypto_Config_t localCfg =
     {
-        .mode = SeosCryptoApi_Mode_LIBRARY,
+        .mode = OS_Crypto_MODE_LIBRARY,
         .mem.malloc = malloc,
         .mem.free = free,
         .impl.lib.rng.entropy = entropy,
     };
 
     // We need an instance of the Crypto API for the keystore for hashing etc..
-    if ((err = SeosCryptoApi_init(&ks->hCrypto, &localCfg)) != SEOS_SUCCESS)
+    if ((err = OS_Crypto_init(&ks->hCrypto, &localCfg)) != SEOS_SUCCESS)
     {
         return err;
     }
@@ -281,7 +281,7 @@ initKeyStore(
     return SEOS_SUCCESS;
 }
 
-// Public Functions used only by SeosCryptoRpc_Server ---------------------------
+// Public Functions used only by OS_CryptoRpcServer ---------------------------
 
 /*
  * This function is called from the RPC server of the Crypto API to find the
@@ -289,14 +289,14 @@ initKeyStore(
  * tells it to use. This is done to prevent API clients from accessing contexts
  * that don't belong to them.
  *
- * Note that this uses SeosCryptoRpc_Server_getClient, which WAITs until the
+ * Note that this uses OS_CryptoRpcServer_getClient, which WAITs until the
  * serverState struct has been initialized!!
  */
-SeosCryptoApiH
-SeosCryptoRpc_Server_getSeosCryptoApi(
+OS_Crypto_Handle_t
+OS_CryptoRpcServer_getCrypto(
     void)
 {
-    CryptoServer_Client* client = SeosCryptoRpc_Server_getClient();
+    CryptoServer_Client* client = OS_CryptoRpcServer_getClient();
     return (NULL == client) ? NULL : client->hCrypto;
 }
 
@@ -304,15 +304,15 @@ SeosCryptoRpc_Server_getSeosCryptoApi(
 
 seos_err_t
 CryptoServer_RPC_loadKey(
-    SeosCryptoLib_Object* ptr,
-    seL4_Word             ownerId,
-    const char*           name)
+    OS_CryptoLib_Object_ptr* ptr,
+    seL4_Word                ownerId,
+    const char*              name)
 {
     seos_err_t err;
     CryptoServer_Client* client, *owner;
-    SeosCryptoApi_Key_Data data;
+    OS_CryptoKey_Data_t data;
     size_t dataLen = sizeof(data);
-    SeosCryptoApi_KeyH hMyKey;
+    OS_CryptoKey_Handle_t hMyKey;
 
     if ((owner = getClient(ownerId)) == NULL)
     {
@@ -347,26 +347,26 @@ CryptoServer_RPC_loadKey(
     }
 
     // Import key data into the remote Crypto API, so it can be used there.
-    if ((err = SeosCryptoApi_Key_import(&hMyKey, client->hCrypto,
+    if ((err = OS_CryptoKey_import(&hMyKey, client->hCrypto,
                                         &data)) != SEOS_SUCCESS)
     {
         return err;
     }
 
     // Send back only the pointer to the LIB Key object
-    *ptr = SeosCryptoApi_getObject(hMyKey);
+    *ptr = OS_Crypto_getObject(hMyKey);
 
     return SEOS_SUCCESS;
 }
 
 seos_err_t
 CryptoServer_RPC_storeKey(
-    SeosCryptoLib_Object ptr,
-    const char*          name)
+    OS_CryptoLib_Object_ptr ptr,
+    const char*             name)
 {
     seos_err_t err;
-    SeosCryptoApi_Key_Data data;
-    SeosCryptoApi_KeyH hMyKey;
+    OS_CryptoKey_Data_t data;
+    OS_CryptoKey_Handle_t hMyKey;
     CryptoServer_Client* client;
 
     if ((client = CryptoServer_getClient()) == NULL)
@@ -380,7 +380,7 @@ CryptoServer_RPC_storeKey(
 
     // We get an API Key object from the RPC client, which has the API context of
     // the CLIENT attached to it. This needs to be changed to the local API context.
-    if ((err = SeosCryptoApi_migrateObject(&hMyKey, client->hCrypto,
+    if ((err = OS_Crypto_migrateObject(&hMyKey, client->hCrypto,
                                            ptr)) != SEOS_SUCCESS)
     {
         return err;
@@ -389,7 +389,7 @@ CryptoServer_RPC_storeKey(
     // Now we can use that key object and export its data; we can always do this
     // since we go through the API which uses the RPC server's LIB instance (the
     // same the RPC client refers to from afar)..
-    if ((err = SeosCryptoApi_Key_export(hMyKey, &data)) != SEOS_SUCCESS)
+    if ((err = OS_CryptoKey_export(hMyKey, &data)) != SEOS_SUCCESS)
     {
         return err;
     }
@@ -415,9 +415,9 @@ int run()
 {
     seos_err_t err;
     CryptoServer_Client* client;
-    SeosCryptoApi_Config remoteCfg =
+    OS_Crypto_Config_t remoteCfg =
     {
-        .mode = SeosCryptoApi_Mode_RPC_SERVER_WITH_LIBRARY,
+        .mode = OS_Crypto_MODE_RPC_SERVER_WITH_LIBRARY,
         .mem.malloc = malloc,
         .mem.free = free,
         .impl.lib.rng.entropy = entropy,
@@ -445,7 +445,7 @@ int run()
 
         // Set up an instance of the Crypto API for each client which is then
         // accessed via its RPC interface
-        if ((err = SeosCryptoApi_init(&client->hCrypto, &remoteCfg)) != SEOS_SUCCESS)
+        if ((err = OS_Crypto_init(&client->hCrypto, &remoteCfg)) != SEOS_SUCCESS)
         {
             return err;
         }

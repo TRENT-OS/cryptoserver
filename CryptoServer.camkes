@@ -3,7 +3,7 @@
  */
 
 import <seos_if_chanMux.camkes>;
-import <seos_if_cryptoApi.camkes>;
+import <if_OS_Crypto.camkes>;
 import <seos_if_cryptoServer.camkes>;
 
 struct disk_info {
@@ -31,7 +31,7 @@ component CryptoServer {
 
     // Crypto API interface, interface threads wait for ServerReady
     dataport    Buf                         SeosCryptoDataport;
-    provides    seos_if_cryptoApi           SeosCryptoRpc_Server;
+    provides    if_OS_Crypto                OS_CryptoRpcServer;
 
     // CryptoServer interface, interface threads wait for ServerReady
     provides    seos_if_cryptoServer        CryptoServer;
