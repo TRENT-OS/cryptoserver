@@ -35,7 +35,7 @@
 
 // All the FS/KeyStore stuff have an underlying "parent" pointer for the "real"
 // object
-#define GET_PARENT_PTR(o) (&(o.parent))
+#define GET_PARENT_PTR(o) (&((o).parent))
 
 /*
  * These are auto-generated based on interface names; they give unique ID
