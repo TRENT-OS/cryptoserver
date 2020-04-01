@@ -11,6 +11,7 @@
 
 // FS includes
 #include "ChanMuxNvmDriver.h"
+#include "OS_FilesystemApi.h"
 #include "seos_pm_api.h"
 #include "SeosFileStreamFactory.h"
 #include "partition_io_layer.h"
@@ -231,15 +232,15 @@ initKeyStore(
     }
 
     // Initialize the partition with RW access
-    if ((err = partition_init(partition.partition_id, 0)) != SEOS_SUCCESS)
+    if ((err = OS_FilesystemApi_init(partition.partition_id, 0)) != SEOS_SUCCESS)
     {
         Debug_LOG_ERROR("partition_init() failed with %d", err);
         goto err0;
     }
 
     // Open the partition
-    ks->partition = partition_open(partition.partition_id);
-    if (!is_valid_partition_handle(ks->partition))
+    ks->partition = OS_FilesystemApi_open(partition.partition_id);
+    if (!OS_FilesystemApi_validatePartitionHandle(ks->partition))
     {
         Debug_LOG_ERROR("Failed to open partition");
         err = SEOS_ERROR_GENERIC;
@@ -247,23 +248,23 @@ initKeyStore(
     }
 
     // Create FS on partition
-    if ((err = partition_fs_create(
-                   ks->partition,
-                   FS_FORMAT,
-                   partition.partition_size,
-                   0,  // default value: size of sector:   512
-                   0,  // default value: size of cluster:  512
-                   0,  // default value: reserved sectors count: FAT12/FAT16 = 1; FAT32 = 3
-                   0,  // default value: count file/dir entries: FAT12/FAT16 = 16; FAT32 = 0
-                   0,  // default value: count header sectors: 512
-                   FS_PARTITION_OVERWRITE_CREATE)) != SEOS_SUCCESS)
+    if ((err = OS_FilesystemApi_create(
+            ks->partition,
+            FS_FORMAT,
+            partition.partition_size,
+            0,  // default value: size of sector:   512
+            0,  // default value: size of cluster:  512
+            0,  // default value: reserved sectors count: FAT12/FAT16 = 1; FAT32 = 3
+            0,  // default value: count file/dir entries: FAT12/FAT16 = 16; FAT32 = 0
+            0,  // default value: count header sectors: 512
+            FS_PARTITION_OVERWRITE_CREATE)) != SEOS_SUCCESS)
     {
         Debug_LOG_ERROR("partition_fs_create() failed with %d", err);
         goto err1;
     }
 
     // Mount the FS on the partition
-    if ((err = partition_fs_mount(ks->partition)) != SEOS_SUCCESS)
+    if ((err = OS_FilesystemApi_mount(ks->partition)) != SEOS_SUCCESS)
     {
         Debug_LOG_ERROR("partition_fs_mount() failed with %d", err);
         goto err1;
@@ -290,9 +291,9 @@ initKeyStore(
 err3:
     SeosFileStreamFactory_dtor(GET_PARENT_PTR(ks->fileStream));
 err2:
-    partition_fs_unmount(ks->partition);
+    OS_FilesystemApi_unmount(ks->partition);
 err1:
-    partition_close(ks->partition);
+    OS_FilesystemApi_close(ks->partition);
 err0:
     OS_Crypto_free(ks->hCrypto);
 
