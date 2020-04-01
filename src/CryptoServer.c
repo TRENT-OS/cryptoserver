@@ -13,7 +13,7 @@
 #include "ProxyNVM.h"
 #include "AesNvm.h"
 #include "seos_fs.h"
-#include "seos_pm.h"
+#include "seos_pm_api.h"
 #include "SeosFileStreamFactory.h"
 #include "partition_io_layer.h"
 
