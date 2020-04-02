@@ -2,16 +2,13 @@
  * Copyright (C) 2019-2020, Hensoldt Cyber GmbH
  */
 
-// Crypto includes
+// OS includes
+#include "OS_FilesystemApi.h"
 #include "OS_Crypto.h"
-
-// KeyStore includes
-#include "SeosKeyStore.h"
-#include "SeosKeyStoreApi.h"
+#include "OS_Keystore.h"
 
 // FS includes
 #include "ChanMuxNvmDriver.h"
-#include "OS_FilesystemApi.h"
 #include "seos_pm_api.h"
 #include "SeosFileStreamFactory.h"
 #include "partition_io_layer.h"
@@ -52,8 +49,7 @@ seL4_Word OS_CryptoRpcServer_get_sender_id(void);
 
 typedef struct
 {
-    SeosKeyStoreCtx* context;
-    SeosKeyStore store;
+    OS_Keystore_Handle_t hKeystore;
     OS_Crypto_Handle_t hCrypto;
     hPartition_t partition;
     SeosFileStreamFactory fileStream;
@@ -177,8 +173,8 @@ initFileSystem(
     }
 
     // Set up partition manager
-    if ((err = partition_manager_init(
-                   ChanMuxNvmDriver_get_nvm(&fs->chanMuxNvm))) != SEOS_SUCCESS)
+    if ((err = partition_manager_init(ChanMuxNvmDriver_get_nvm(
+                                          &fs->chanMuxNvm))) != SEOS_SUCCESS)
     {
         Debug_LOG_ERROR("partition_manager_init() failed with %d", err);
         goto err0;
@@ -234,7 +230,7 @@ initKeyStore(
     // Initialize the partition with RW access
     if ((err = OS_FilesystemApi_init(partition.partition_id, 0)) != SEOS_SUCCESS)
     {
-        Debug_LOG_ERROR("partition_init() failed with %d", err);
+        Debug_LOG_ERROR("OS_FilesystemApi_init() failed with %d", err);
         goto err0;
     }
 
@@ -249,25 +245,25 @@ initKeyStore(
 
     // Create FS on partition
     if ((err = OS_FilesystemApi_create(
-            ks->partition,
-            FS_FORMAT,
-            partition.partition_size,
-            0,  // default value: size of sector:   512
-            0,  // default value: size of cluster:  512
-            0,  // default value: reserved sectors count: FAT12/FAT16 = 1; FAT32 = 3
-            0,  // default value: count file/dir entries: FAT12/FAT16 = 16; FAT32 = 0
-            0,  // default value: count header sectors: 512
-            FS_PARTITION_OVERWRITE_CREATE)) != SEOS_SUCCESS)
+                   ks->partition,
+                   FS_FORMAT,
+                   partition.partition_size,
+                   0,  // default value: size of sector:   512
+                   0,  // default value: size of cluster:  512
+                   0,  // default value: reserved sectors count: FAT12/FAT16 = 1; FAT32 = 3
+                   0,  // default value: count file/dir entries: FAT12/FAT16 = 16; FAT32 = 0
+                   0,  // default value: count header sectors: 512
+                   FS_PARTITION_OVERWRITE_CREATE)) != SEOS_SUCCESS)
     {
-        Debug_LOG_ERROR("partition_fs_create() failed with %d", err);
+        Debug_LOG_ERROR("OS_FilesystemApi_create() failed with %d", err);
         goto err1;
     }
 
     // Mount the FS on the partition
     if ((err = OS_FilesystemApi_mount(ks->partition)) != SEOS_SUCCESS)
     {
-        Debug_LOG_ERROR("partition_fs_mount() failed with %d", err);
-        goto err1;
+        Debug_LOG_ERROR("Failed to mount partition with filesystem.");
+        return SEOS_ERROR_GENERIC;
     }
 
     // Open the partition and assign it to a filestream factory
@@ -278,13 +274,12 @@ initKeyStore(
         goto err2;
     }
 
-    if ((err = SeosKeyStore_init(&ks->store, GET_PARENT_PTR(ks->fileStream),
-                                 ks->hCrypto, "keystore")) != SEOS_SUCCESS)
+    if ((err = OS_Keystore_init(&ks->hKeystore, GET_PARENT_PTR(ks->fileStream),
+                                ks->hCrypto, "keystore")) != SEOS_SUCCESS)
     {
-        Debug_LOG_ERROR("SeosKeyStore_init() failed with %d", err);
+        Debug_LOG_ERROR("OS_Keystore_init() failed with %d", err);
         goto err3;
     }
-    ks->context = GET_PARENT_PTR(ks->store);
 
     return SEOS_SUCCESS;
 
@@ -359,8 +354,8 @@ CryptoServer_RPC_loadKey(
     // Here we access the data stored for another client; however, since all
     // RPC calls are serialized, we cannot have a race-condition because there
     // is only one RPC client active at a time.
-    if ((err = SeosKeyStoreApi_getKey(owner->keys.context, name, &data,
-                                      &dataLen)) != SEOS_SUCCESS)
+    if ((err = OS_Keystore_loadKey(owner->keys.hKeystore, name, &data,
+                                   &dataLen)) != SEOS_SUCCESS)
     {
         return err;
     }
@@ -421,8 +416,8 @@ CryptoServer_RPC_storeKey(
     }
 
     // Store key in keystore
-    if ((err = SeosKeyStoreApi_importKey(client->keys.context, name,
-                                         &data, sizeof(data))) == SEOS_SUCCESS)
+    if ((err = OS_Keystore_storeKey(client->keys.hKeystore, name, &data,
+                                    sizeof(data))) == SEOS_SUCCESS)
     {
         client->keys.bytesWritten += sizeof(data);
     }
