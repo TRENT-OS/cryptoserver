@@ -200,7 +200,7 @@ static seos_err_t
 initKeyStore(
     CryptoServer_FileSystem* fs,
     const uint8_t            index,
-    CryptoServer_KeyStore*    ks)
+    CryptoServer_KeyStore*   ks)
 {
     seos_err_t err;
     pm_partition_data_t partition;
