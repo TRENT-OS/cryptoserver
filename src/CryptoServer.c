@@ -3,7 +3,7 @@
  */
 
 // OS includes
-#include "OS_FilesystemApi.h"
+#include "OS_Filesystem.h"
 #include "OS_Crypto.h"
 #include "OS_Keystore.h"
 
@@ -228,15 +228,15 @@ initKeyStore(
     }
 
     // Initialize the partition with RW access
-    if ((err = OS_FilesystemApi_init(partition.partition_id, 0)) != SEOS_SUCCESS)
+    if ((err = OS_Filesystem_init(partition.partition_id, 0)) != SEOS_SUCCESS)
     {
-        Debug_LOG_ERROR("OS_FilesystemApi_init() failed with %d", err);
+        Debug_LOG_ERROR("OS_Filesystem_init() failed with %d", err);
         goto err0;
     }
 
     // Open the partition
-    ks->partition = OS_FilesystemApi_open(partition.partition_id);
-    if (!OS_FilesystemApi_validatePartitionHandle(ks->partition))
+    ks->partition = OS_Filesystem_open(partition.partition_id);
+    if (!OS_Filesystem_validatePartitionHandle(ks->partition))
     {
         Debug_LOG_ERROR("Failed to open partition");
         err = SEOS_ERROR_GENERIC;
@@ -244,7 +244,7 @@ initKeyStore(
     }
 
     // Create FS on partition
-    if ((err = OS_FilesystemApi_create(
+    if ((err = OS_Filesystem_create(
                    ks->partition,
                    FS_FORMAT,
                    partition.partition_size,
@@ -255,12 +255,12 @@ initKeyStore(
                    0,  // default value: count header sectors: 512
                    FS_PARTITION_OVERWRITE_CREATE)) != SEOS_SUCCESS)
     {
-        Debug_LOG_ERROR("OS_FilesystemApi_create() failed with %d", err);
+        Debug_LOG_ERROR("OS_Filesystem_create() failed with %d", err);
         goto err1;
     }
 
     // Mount the FS on the partition
-    if ((err = OS_FilesystemApi_mount(ks->partition)) != SEOS_SUCCESS)
+    if ((err = OS_Filesystem_mount(ks->partition)) != SEOS_SUCCESS)
     {
         Debug_LOG_ERROR("Failed to mount partition with filesystem.");
         return SEOS_ERROR_GENERIC;
@@ -286,9 +286,9 @@ initKeyStore(
 err3:
     SeosFileStreamFactory_dtor(GET_PARENT_PTR(ks->fileStream));
 err2:
-    OS_FilesystemApi_unmount(ks->partition);
+    OS_Filesystem_unmount(ks->partition);
 err1:
-    OS_FilesystemApi_close(ks->partition);
+    OS_Filesystem_close(ks->partition);
 err0:
     OS_Crypto_free(ks->hCrypto);
 
