@@ -45,7 +45,7 @@
  * comment below.
  */
 seL4_Word CryptoServer_get_sender_id(void);
-seL4_Word OS_CryptoRpcServer_get_sender_id(void);
+seL4_Word CryptoLibServer_get_sender_id(void);
 
 typedef struct
 {
@@ -102,7 +102,7 @@ entropy(
  * to understand is that the CryptoServer offers TWO interfaces:
  * 1. The CryptoServer interface, as explicitly defined in the relevant CAMKES
  *    file and as visible in CrytpoServer.h and this file.
- * 2. The OS_CryptoRpcServer interface, due to the fact that this component is
+ * 2. The CryptoLibServer interface, due to the fact that this component is
  *    linked with SEOS_CRYPTO_WITH_RCP_SERVER and thus contains the Crypto API
  *    LIB and RPC Server code.
  * Mapping to the data structure is based on the numeric "sender ID" which each
@@ -110,7 +110,7 @@ entropy(
  * sender IDs are the same for each RPC client ON BOTH INTERFACES. If it is not
  * so, one component initializes data structures with ID=1 via the CryptoServer
  * interface, and then uses data structures with ID=2 (or whatever) via the
- * OS_CryptoRpcServer interface! This mismatch leads to problems.
+ * CryptoLibServer interface! This mismatch leads to problems.
  *
  * The way to make sure both IDs are the same, is to explicitly assign the IDs
  * in a configuration:
@@ -122,10 +122,10 @@ entropy(
  *          ...
  *      }
  *      configuration{
- *          testApp_1.CryptoServer_attributes         = 0;
- *          testApp_1.OS_CryptoRpcServer_attributes   = 0;
- *          testApp_2.CryptoServer_attributes         = 1;
- *          testApp_2.OS_CryptoRpcServer_attributes   = 1;
+ *          testApp_1.CryptoServer_attributes      = 0;
+ *          testApp_1.CryptoLibServer_attributes   = 0;
+ *          testApp_2.CryptoServer_attributes      = 1;
+ *          testApp_2.CryptoLibServer_attributes   = 1;
  *      }
  *  }
  */
@@ -152,9 +152,9 @@ CryptoServer_getClient()
 }
 
 static CryptoServer_Client*
-OS_CryptoRpcServer_getClient()
+CryptoLibServer_getClient()
 {
-    return getClient(OS_CryptoRpcServer_get_sender_id());
+    return getClient(CryptoLibServer_get_sender_id());
 }
 
 static seos_err_t
@@ -206,10 +206,10 @@ initKeyStore(
     pm_partition_data_t partition;
     OS_Crypto_Config_t localCfg =
     {
-        .mode = OS_Crypto_MODE_LIBRARY,
+        .mode = OS_Crypto_MODE_LIBRARY_ONLY,
         .mem.malloc = malloc,
         .mem.free = free,
-        .impl.lib.rng.entropy = entropy,
+        .library.rng.entropy = entropy,
     };
 
     // We need an instance of the Crypto API for the keystore for hashing etc..
@@ -295,7 +295,7 @@ err0:
     return err;
 }
 
-// Public Functions used only by OS_CryptoRpcServer ---------------------------
+// Public Functions used only by CryptoLibServer ------------------------------
 
 /*
  * This function is called from the RPC server of the Crypto API to find the
@@ -303,14 +303,14 @@ err0:
  * tells it to use. This is done to prevent API clients from accessing contexts
  * that don't belong to them.
  *
- * Note that this uses OS_CryptoRpcServer_getClient, which WAITs until the
+ * Note that this uses CryptoLibServer_getClient, which WAITs until the
  * serverState struct has been initialized!!
  */
 OS_Crypto_Handle_t
-OS_CryptoRpcServer_getCrypto(
+CryptoLibServer_getCrypto(
     void)
 {
-    CryptoServer_Client* client = OS_CryptoRpcServer_getClient();
+    CryptoServer_Client* client = CryptoLibServer_getClient();
     return (NULL == client) ? NULL : client->hCrypto;
 }
 
@@ -318,7 +318,7 @@ OS_CryptoRpcServer_getCrypto(
 
 seos_err_t
 CryptoServer_RPC_loadKey(
-    OS_CryptoLib_Object_ptr* ptr,
+    CryptoLib_Object_ptr* ptr,
     seL4_Word                ownerId,
     const char*              name)
 {
@@ -375,7 +375,7 @@ CryptoServer_RPC_loadKey(
 
 seos_err_t
 CryptoServer_RPC_storeKey(
-    OS_CryptoLib_Object_ptr ptr,
+    CryptoLib_Object_ptr ptr,
     const char*             name)
 {
     seos_err_t err;
@@ -431,11 +431,11 @@ int run()
     CryptoServer_Client* client;
     OS_Crypto_Config_t remoteCfg =
     {
-        .mode = OS_Crypto_MODE_RPC_SERVER_WITH_LIBRARY,
+        .mode = OS_Crypto_MODE_SERVER,
         .mem.malloc = malloc,
         .mem.free = free,
-        .impl.lib.rng.entropy = entropy,
-        .server.dataPort = CRYPTO_DATAPORT
+        .library.rng.entropy = entropy,
+        .rpc.server.dataPort = CRYPTO_DATAPORT
     };
 
     // Make sure we don't exceed our limit

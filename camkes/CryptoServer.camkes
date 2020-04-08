@@ -32,7 +32,7 @@ component CryptoServer {
 
     // Crypto API interface, interface threads wait for ServerReady
     dataport    Buf                         SeosCryptoDataport;
-    provides    if_OS_Crypto                OS_CryptoRpcServer;
+    provides    if_OS_Crypto                CryptoLibServer;
 
     // CryptoServer interface, interface threads wait for ServerReady
     provides    if_CryptoServer             CryptoServer;

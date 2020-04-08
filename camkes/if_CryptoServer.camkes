@@ -23,13 +23,13 @@ procedure if_CryptoServer {
 
     seos_err_t
     RPC_storeKey(
-        in OS_CryptoLib_Object_ptr ptr,
+        in CryptoLib_Object_ptr ptr,
         in string name
     );
 
     seos_err_t
     RPC_loadKey(
-        out OS_CryptoLib_Object_ptr ptr,
+        out CryptoLib_Object_ptr ptr,
         in seL4_Word ownerId,
         in string name
     );

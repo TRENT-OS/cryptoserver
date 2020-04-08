@@ -52,7 +52,7 @@ CryptoServer_loadKey(
     const char*            name)
 {
     seos_err_t err;
-    OS_CryptoLib_Object_ptr ptr;
+    CryptoLib_Object_ptr ptr;
 
     if (NULL == hKey || NULL == hCrypto)
     {
