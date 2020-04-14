@@ -319,8 +319,8 @@ CryptoLibServer_getCrypto(
 seos_err_t
 CryptoServer_RPC_loadKey(
     CryptoLib_Object_ptr* ptr,
-    seL4_Word                ownerId,
-    const char*              name)
+    seL4_Word             ownerId,
+    const char*           name)
 {
     seos_err_t err;
     CryptoServer_Client* client, *owner;
@@ -368,7 +368,7 @@ CryptoServer_RPC_loadKey(
     }
 
     // Send back only the pointer to the LIB Key object
-    *ptr = OS_Crypto_getObject(hMyKey);
+    *ptr = OS_Crypto_getLibObject(hMyKey);
 
     return SEOS_SUCCESS;
 }
@@ -376,7 +376,7 @@ CryptoServer_RPC_loadKey(
 seos_err_t
 CryptoServer_RPC_storeKey(
     CryptoLib_Object_ptr ptr,
-    const char*             name)
+    const char*          name)
 {
     seos_err_t err;
     OS_CryptoKey_Data_t data;
@@ -394,8 +394,8 @@ CryptoServer_RPC_storeKey(
 
     // We get an API Key object from the RPC client, which has the API context of
     // the CLIENT attached to it. This needs to be changed to the local API context.
-    if ((err = OS_Crypto_migrateObject(&hMyKey, client->hCrypto,
-                                       ptr)) != SEOS_SUCCESS)
+    if ((err = OS_Crypto_migrateLibObject(&hMyKey, client->hCrypto,
+                                       ptr, true)) != SEOS_SUCCESS)
     {
         return err;
     }

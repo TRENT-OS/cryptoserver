@@ -62,7 +62,7 @@ CryptoServer_loadKey(
     // Call function within CryptoServer component via CAmkES-generated interface
     if ((err = CryptoServer_RPC_loadKey(&ptr, ownerId, name)) == SEOS_SUCCESS)
     {
-        err = OS_Crypto_migrateObject(hKey, hCrypto, ptr);
+        err = OS_Crypto_migrateLibObject(hKey, hCrypto, ptr, false);
     }
 
     return err;
@@ -105,7 +105,7 @@ CryptoServer_storeKey(
     const char*           name)
 {
     // Call function within CryptoServer component via CAmkES-generated interface
-    return CryptoServer_RPC_storeKey(OS_Crypto_getObject(hKey), name);
+    return CryptoServer_RPC_storeKey(OS_Crypto_getLibObject(hKey), name);
 }
 
 /** @} */
