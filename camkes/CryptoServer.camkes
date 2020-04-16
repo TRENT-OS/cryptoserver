@@ -31,7 +31,7 @@ component CryptoServer {
     consumes    ServerReady                 initDone;
 
     // Crypto API interface, interface threads wait for ServerReady
-    dataport    Buf                         SeosCryptoDataport;
+    dataport    Buf                         CryptoLibDataport;
     provides    if_OS_Crypto                CryptoLibServer;
 
     // CryptoServer interface, interface threads wait for ServerReady

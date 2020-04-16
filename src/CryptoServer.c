@@ -22,7 +22,7 @@
 #define CHANMUX_NVM_CHANNEL 6
 #define CHANMUX_NVM_DATAPORT chanMuxDataPort
 
-#define CRYPTO_DATAPORT SeosCryptoDataport
+#define CRYPTO_DATAPORT CryptoLibDataport
 // Allow at most this amount of clients
 #define CRYPTO_CLIENTS_MAX 16
 
