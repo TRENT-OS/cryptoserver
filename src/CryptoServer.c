@@ -72,17 +72,11 @@ typedef struct
 {
     CryptoServer_Client clients[CRYPTO_CLIENTS_MAX];
     CryptoServer_FileSystem fs;
-    bool initialized;
 } CryptoServer_State;
 
 // Here we keep track of all the respective contexts and the list of clients
 // connected to the server
-static CryptoServer_State serverState =
-{
-    .clients     = {},
-    .fs          = {},
-    .initialized = false
-};
+static CryptoServer_State serverState;
 
 // Private Functions -----------------------------------------------------------
 
@@ -134,15 +128,18 @@ static CryptoServer_Client*
 getClient(
     seL4_Word id)
 {
-    // Before we acces the server state, make sure it is initialized. If not, we
-    // wait for the run-thread to send the initDone signal!
-    if (!serverState.initialized)
-    {
-        initDone_wait();
-    }
+    CryptoServer_Client* client;
 
-    return (id >= config.numClients) ? NULL :
-           (serverState.clients[id].id == id) ? &serverState.clients[id] : NULL;
+    // Before we acces the server state, make sure it is initialized.
+    Debug_ASSERT_PRINTFLN(sem_init_wait() == 0, "Failed to wait for semaphore");
+
+    client = (id >= config.numClients) ? NULL :
+             (serverState.clients[id].id != id) ? NULL :
+             &serverState.clients[id];
+
+    Debug_ASSERT_PRINTFLN(sem_init_post() == 0, "Failed to post semaphore");
+
+    return client;
 }
 
 static CryptoServer_Client*
@@ -314,6 +311,72 @@ CryptoLibServer_getCrypto(
     return (NULL == client) ? NULL : client->hCrypto;
 }
 
+/*
+ * Init filesystem, keystore and crypto states for every client before allowing the
+ * RPC components to access them.
+ *
+ * NOTE: Ideally, we would like to do this in post_init() but OS_Filesystem_return()
+ *       does not return, so that needs further investigation.
+ */
+int run()
+{
+    seos_err_t err;
+    CryptoServer_Client* client;
+    OS_Crypto_Config_t remoteCfg =
+    {
+        .mode = OS_Crypto_MODE_SERVER,
+        .mem.malloc = malloc,
+        .mem.free = free,
+        .library.rng.entropy = entropy,
+        .rpc.server.dataPort = CRYPTO_DATAPORT
+    };
+
+    // Make sure we don't exceed our limit
+    Debug_ASSERT(config.numClients <= CRYPTO_CLIENTS_MAX);
+    // Make sure we have as many COLUMNS in the first row as we have clients
+    Debug_ASSERT(config.numClients == sizeof(config.clients[0].allowedIds) /
+                 sizeof(int));
+    // Make sure we have as many ROWS in the matrix as we have clients
+    Debug_ASSERT(config.numClients == sizeof(config.clients) /
+                 sizeof(config.clients[0]));
+
+    if ((err = initFileSystem(&serverState.fs)) != SEOS_SUCCESS)
+    {
+        return err;
+    }
+
+    for (size_t i = 0; i < config.numClients; i++)
+    {
+        client = &serverState.clients[i];
+        client->id = i;
+
+        // Set up an instance of the Crypto API for each client which is then
+        // accessed via its RPC interface
+        if ((err = OS_Crypto_init(&client->hCrypto, &remoteCfg)) != SEOS_SUCCESS)
+        {
+            return err;
+        }
+
+        // Set up keystore
+        if ((err = initKeyStore(&serverState.fs, i, &client->keys)) != SEOS_SUCCESS)
+        {
+            return err;
+        }
+    }
+
+    /*
+     * We have to post twice, because we may have the two RPC threads for the
+     * two interfaces waiting in parallel for the init to complete. The two
+     * interfaces are:
+     * 1. CryptoServer      (implemented here)
+     * 2. CryptoLibServer   (provided via the RPC server module of the Crypto API)
+     */
+    Debug_ASSERT_PRINTFLN(sem_init_post() == 0, "Failed to post semaphore");
+    Debug_ASSERT_PRINTFLN(sem_init_post() == 0, "Failed to post semaphore");
+
+    return SEOS_SUCCESS;
+}
+
 // Public Functions ------------------------------------------------------------
 
 seos_err_t
@@ -423,59 +486,4 @@ CryptoServer_RPC_storeKey(
     }
 
     return err;
-}
-
-int run()
-{
-    seos_err_t err;
-    CryptoServer_Client* client;
-    OS_Crypto_Config_t remoteCfg =
-    {
-        .mode = OS_Crypto_MODE_SERVER,
-        .mem.malloc = malloc,
-        .mem.free = free,
-        .library.rng.entropy = entropy,
-        .rpc.server.dataPort = CRYPTO_DATAPORT
-    };
-
-    // Make sure we don't exceed our limit
-    Debug_ASSERT(config.numClients <= CRYPTO_CLIENTS_MAX);
-    // Make sure we have as many COLUMNS in the first row as we have clients
-    Debug_ASSERT(config.numClients == sizeof(config.clients[0].allowedIds) /
-                 sizeof(int));
-    // Make sure we have as many ROWS in the matrix as we have clients
-    Debug_ASSERT(config.numClients == sizeof(config.clients) /
-                 sizeof(config.clients[0]));
-
-    if ((err = initFileSystem(&serverState.fs)) != SEOS_SUCCESS)
-    {
-        return err;
-    }
-
-    for (size_t i = 0; i < config.numClients; i++)
-    {
-        client = &serverState.clients[i];
-        client->id = i;
-
-        // Set up an instance of the Crypto API for each client which is then
-        // accessed via its RPC interface
-        if ((err = OS_Crypto_init(&client->hCrypto, &remoteCfg)) != SEOS_SUCCESS)
-        {
-            return err;
-        }
-
-        // Set up keystore
-        if ((err = initKeyStore(&serverState.fs, i, &client->keys)) != SEOS_SUCCESS)
-        {
-            return err;
-        }
-    }
-
-    serverState.initialized = true;
-
-    // Signal to every RPC interface thread which has potentially already clients
-    // waiting to use the CryptoServer
-    serverInitDone_emit();
-
-    return SEOS_SUCCESS;
 }

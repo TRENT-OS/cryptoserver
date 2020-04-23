@@ -25,11 +25,6 @@ struct serverConfig {
 component CryptoServer {
     control;
 
-    // CryptoServer has a set-up phase, only after that clients can use it. We signal
-    // "readyness" to all potentially waiting RPC threads so they can wait for that.
-    emits       ServerReady                 serverInitDone;
-    consumes    ServerReady                 initDone;
-
     // Crypto API interface, interface threads wait for ServerReady
     dataport    Buf                         CryptoLibDataport;
     provides    if_OS_Crypto                CryptoLibServer;
@@ -44,4 +39,7 @@ component CryptoServer {
 
     // Configure clients connected to CryptoServer
     attribute   serverConfig                config;
+
+    // Semaphore for synching RPC threads with init process
+    has         semaphore                   sem_init;
 }
