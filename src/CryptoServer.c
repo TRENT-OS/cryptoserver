@@ -19,8 +19,13 @@
 #include <string.h>
 
 // Defines for ChanMux
-#define CHANMUX_NVM_CHANNEL 6
-#define CHANMUX_NVM_DATAPORT chanMuxDataPort
+static const ChanMuxClientConfig_t chanMuxClientConfig = {
+    .port  = CHANMUX_DATAPORT_DUPLEX_SHARED_ASSIGN(chanMux_port),
+    .wait  = chanMux_event_hasData_wait,
+    .write = chanMux_rpc_write,
+    .read  = chanMux_rpc_read
+};
+
 
 #define CRYPTO_DATAPORT CryptoLibDataport
 // Allow at most this amount of clients
@@ -65,7 +70,7 @@ typedef struct
 
 typedef struct
 {
-    ChanMuxNvmDriver chanMuxNvm;
+    ChanMuxNvmDriver chanMuxNvmDriver;
 } CryptoServer_FileSystem;
 
 typedef struct
@@ -161,17 +166,18 @@ initFileSystem(
     seos_err_t err;
     pm_disk_data_t disk;
 
-    if (!ChanMuxNvmDriver_ctor(&fs->chanMuxNvm, CHANMUX_NVM_CHANNEL,
-                               CHANMUX_NVM_DATAPORT))
+    if (!ChanMuxNvmDriver_ctor(
+            &(fs->chanMuxNvmDriver),
+            &chanMuxClientConfig))
     {
-        Debug_LOG_ERROR("ChanMuxNvmDriver_ctor() on Proxy channel %d failed",
-                        CHANMUX_NVM_CHANNEL);
+        Debug_LOG_ERROR("ChanMuxNvmDriver_ctor() failed");
         return SEOS_ERROR_GENERIC;
     }
 
     // Set up partition manager
-    if ((err = partition_manager_init(ChanMuxNvmDriver_get_nvm(
-                                          &fs->chanMuxNvm))) != SEOS_SUCCESS)
+    if ((err = partition_manager_init(
+                    ChanMuxNvmDriver_get_nvm(
+                        &fs->chanMuxNvmDriver))) != SEOS_SUCCESS)
     {
         Debug_LOG_ERROR("partition_manager_init() failed with %d", err);
         goto err0;
@@ -188,7 +194,7 @@ initFileSystem(
     return SEOS_SUCCESS;
 
 err0:
-    ChanMuxNvmDriver_dtor(&fs->chanMuxNvm);
+    ChanMuxNvmDriver_dtor(&fs->chanMuxNvmDriver);
 
     return err;
 }

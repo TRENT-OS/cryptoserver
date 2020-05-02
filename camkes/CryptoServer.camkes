@@ -33,9 +33,9 @@ component CryptoServer {
     provides    if_CryptoServer             CryptoServer;
 
     // ChanMux for KeyStore NVM communication
-    dataport    Buf                         chanMuxDataPort;
-    uses        ChanMuxDriverInf            ChanMuxRpc;
-    consumes    DataAvailableEvent          ChanMuxSignal_dataAvailable;
+    dataport    Buf                         chanMux_port;
+    uses        ChanMuxDriverInf            chanMux_rpc;
+    consumes    DataAvailableEvent          chanMux_event_hasData;
 
     // Configure clients connected to CryptoServer
     attribute   serverConfig                config;
