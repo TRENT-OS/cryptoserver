@@ -210,8 +210,6 @@ initKeyStore(
     OS_Crypto_Config_t localCfg =
     {
         .mode = OS_Crypto_MODE_LIBRARY_ONLY,
-        .mem.malloc = malloc,
-        .mem.free = free,
         .library.rng.entropy = entropy,
     };
 
@@ -331,8 +329,6 @@ int run()
     OS_Crypto_Config_t remoteCfg =
     {
         .mode = OS_Crypto_MODE_SERVER,
-        .mem.malloc = malloc,
-        .mem.free = free,
         .library.rng.entropy = entropy,
         .rpc.server.dataPort = CRYPTO_DATAPORT
     };
