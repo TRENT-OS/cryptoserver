@@ -44,14 +44,14 @@
  *  the client to load keys owned by \p ownerId
  * @retval SEOS_ERROR_GENERIC is a generic error occured in the KeyStore
  */
-static seos_err_t
+static OS_Error_t
 CryptoServer_loadKey(
     OS_CryptoKey_Handle_t* hKey,
     OS_Crypto_Handle_t     hCrypto,
     seL4_Word              ownerId,
     const char*            name)
 {
-    seos_err_t err;
+    OS_Error_t err;
     CryptoLib_Object_ptr ptr;
 
     if (NULL == hKey || NULL == hCrypto)
@@ -99,7 +99,7 @@ CryptoServer_loadKey(
  *  storageLimit defined for it in the configuration
  * @retval SEOS_ERROR_GENERIC is a generic error occured in the KeyStore
  */
-static seos_err_t
+static OS_Error_t
 CryptoServer_storeKey(
     OS_CryptoKey_Handle_t hKey,
     const char*           name)

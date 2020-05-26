@@ -159,11 +159,11 @@ CryptoLibServer_getClient()
     return getClient(CryptoLibServer_get_sender_id());
 }
 
-static seos_err_t
+static OS_Error_t
 initFileSystem(
     CryptoServer_FileSystem* fs)
 {
-    seos_err_t err;
+    OS_Error_t err;
     pm_disk_data_t disk;
 
     if (!ChanMuxNvmDriver_ctor(
@@ -199,13 +199,13 @@ err0:
     return err;
 }
 
-static seos_err_t
+static OS_Error_t
 initKeyStore(
     CryptoServer_FileSystem* fs,
     const uint8_t            index,
     CryptoServer_KeyStore*   ks)
 {
-    seos_err_t err;
+    OS_Error_t err;
     pm_partition_data_t partition;
     OS_Crypto_Config_t localCfg =
     {
@@ -324,7 +324,7 @@ CryptoLibServer_getCrypto(
  */
 int run()
 {
-    seos_err_t err;
+    OS_Error_t err;
     CryptoServer_Client* client;
     OS_Crypto_Config_t remoteCfg =
     {
@@ -381,13 +381,13 @@ int run()
 
 // Public Functions ------------------------------------------------------------
 
-seos_err_t
+OS_Error_t
 CryptoServer_RPC_loadKey(
     CryptoLib_Object_ptr* ptr,
     seL4_Word             ownerId,
     const char*           name)
 {
-    seos_err_t err;
+    OS_Error_t err;
     CryptoServer_Client* client, *owner;
     OS_CryptoKey_Data_t data;
     size_t dataLen = sizeof(data);
@@ -438,12 +438,12 @@ CryptoServer_RPC_loadKey(
     return SEOS_SUCCESS;
 }
 
-seos_err_t
+OS_Error_t
 CryptoServer_RPC_storeKey(
     CryptoLib_Object_ptr ptr,
     const char*          name)
 {
-    seos_err_t err;
+    OS_Error_t err;
     OS_CryptoKey_Data_t data;
     OS_CryptoKey_Handle_t hMyKey;
     CryptoServer_Client* client;

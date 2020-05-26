@@ -21,13 +21,13 @@ procedure if_CryptoServer {
     // NOTE: Do not copy this.
     //
 
-    seos_err_t
+    OS_Error_t
     RPC_storeKey(
         in CryptoLib_Object_ptr ptr,
         in string name
     );
 
-    seos_err_t
+    OS_Error_t
     RPC_loadKey(
         out CryptoLib_Object_ptr ptr,
         in seL4_Word ownerId,
