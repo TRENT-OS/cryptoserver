@@ -37,12 +37,12 @@
  * @param name (required) name of key
  *
  * @return an error code
- * @retval SEOS_SUCCESS if operation succeeded
- * @retval SEOS_ERROR_INVALID_PARAMETER if a parameter was missing or invalid
- * @retval SEOS_ERROR_NOT_FOUND if the CryptoServer client cannot be found
- * @retval SEOS_ERROR_ACCESS_DENIED if the CryptoServer configuration does not allow
+ * @retval OS_SUCCESS if operation succeeded
+ * @retval OS_ERROR_INVALID_PARAMETER if a parameter was missing or invalid
+ * @retval OS_ERROR_NOT_FOUND if the CryptoServer client cannot be found
+ * @retval OS_ERROR_ACCESS_DENIED if the CryptoServer configuration does not allow
  *  the client to load keys owned by \p ownerId
- * @retval SEOS_ERROR_GENERIC is a generic error occured in the KeyStore
+ * @retval OS_ERROR_GENERIC is a generic error occured in the KeyStore
  */
 static OS_Error_t
 CryptoServer_loadKey(
@@ -56,11 +56,11 @@ CryptoServer_loadKey(
 
     if (NULL == hKey || NULL == hCrypto)
     {
-        return SEOS_ERROR_INVALID_PARAMETER;
+        return OS_ERROR_INVALID_PARAMETER;
     }
 
     // Call function within CryptoServer component via CAmkES-generated interface
-    if ((err = CryptoServer_RPC_loadKey(&ptr, ownerId, name)) == SEOS_SUCCESS)
+    if ((err = CryptoServer_RPC_loadKey(&ptr, ownerId, name)) == OS_SUCCESS)
     {
         err = OS_Crypto_migrateLibObject(hKey, hCrypto, ptr, false);
     }
@@ -92,12 +92,12 @@ CryptoServer_loadKey(
  *
  * @return an error code
  * @return an error code
- * @retval SEOS_SUCCESS if operation succeeded
- * @retval SEOS_ERROR_INVALID_PARAMETER if a parameter was missing or invalid
- * @retval SEOS_ERROR_NOT_FOUND if the CryptoServer client cannot be found
- * @retval SEOS_ERROR_INSUFFICIENT_SPACE if the operation would exceed the
+ * @retval OS_SUCCESS if operation succeeded
+ * @retval OS_ERROR_INVALID_PARAMETER if a parameter was missing or invalid
+ * @retval OS_ERROR_NOT_FOUND if the CryptoServer client cannot be found
+ * @retval OS_ERROR_INSUFFICIENT_SPACE if the operation would exceed the
  *  storageLimit defined for it in the configuration
- * @retval SEOS_ERROR_GENERIC is a generic error occured in the KeyStore
+ * @retval OS_ERROR_GENERIC is a generic error occured in the KeyStore
  */
 static OS_Error_t
 CryptoServer_storeKey(

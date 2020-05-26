@@ -171,18 +171,18 @@ initFileSystem(
             &chanMuxClientConfig))
     {
         Debug_LOG_ERROR("ChanMuxNvmDriver_ctor() failed");
-        return SEOS_ERROR_GENERIC;
+        return OS_ERROR_GENERIC;
     }
 
     // Set up partition manager
     if ((err = partition_manager_init(
                     ChanMuxNvmDriver_get_nvm(
-                        &fs->chanMuxNvmDriver))) != SEOS_SUCCESS)
+                        &fs->chanMuxNvmDriver))) != OS_SUCCESS)
     {
         Debug_LOG_ERROR("partition_manager_init() failed with %d", err);
         goto err0;
     }
-    if ((err = partition_manager_get_info_disk(&disk)) != SEOS_SUCCESS)
+    if ((err = partition_manager_get_info_disk(&disk)) != OS_SUCCESS)
     {
         Debug_LOG_ERROR("partition_manager_get_info_disk() failed with %d", err);
         goto err0;
@@ -191,7 +191,7 @@ initFileSystem(
     // Make sure we have as many partitions as we have clients
     Debug_ASSERT(config.numClients == disk.partition_count);
 
-    return SEOS_SUCCESS;
+    return OS_SUCCESS;
 
 err0:
     ChanMuxNvmDriver_dtor(&fs->chanMuxNvmDriver);
@@ -214,7 +214,7 @@ initKeyStore(
     };
 
     // We need an instance of the Crypto API for the keystore for hashing etc..
-    if ((err = OS_Crypto_init(&ks->hCrypto, &localCfg)) != SEOS_SUCCESS)
+    if ((err = OS_Crypto_init(&ks->hCrypto, &localCfg)) != OS_SUCCESS)
     {
         Debug_LOG_ERROR("OS_Crypto_init() failed with %d", err);
         return err;
@@ -222,14 +222,14 @@ initKeyStore(
 
     // Read partition info to get the internal ID
     if ((err = partition_manager_get_info_partition(index,
-                                                    &partition)) != SEOS_SUCCESS)
+                                                    &partition)) != OS_SUCCESS)
     {
         Debug_LOG_ERROR("partition_manager_get_info_partition() failed with %d", err);
         goto err0;
     }
 
     // Initialize the partition with RW access
-    if ((err = OS_Filesystem_init(partition.partition_id, 0)) != SEOS_SUCCESS)
+    if ((err = OS_Filesystem_init(partition.partition_id, 0)) != OS_SUCCESS)
     {
         Debug_LOG_ERROR("OS_Filesystem_init() failed with %d", err);
         goto err0;
@@ -240,7 +240,7 @@ initKeyStore(
     if (!OS_Filesystem_validatePartitionHandle(ks->partition))
     {
         Debug_LOG_ERROR("Failed to open partition");
-        err = SEOS_ERROR_GENERIC;
+        err = OS_ERROR_GENERIC;
         goto err0;
     }
 
@@ -254,35 +254,35 @@ initKeyStore(
                    0,  // default value: reserved sectors count: FAT12/FAT16 = 1; FAT32 = 3
                    0,  // default value: count file/dir entries: FAT12/FAT16 = 16; FAT32 = 0
                    0,  // default value: count header sectors: 512
-                   FS_PARTITION_OVERWRITE_CREATE)) != SEOS_SUCCESS)
+                   FS_PARTITION_OVERWRITE_CREATE)) != OS_SUCCESS)
     {
         Debug_LOG_ERROR("OS_Filesystem_create() failed with %d", err);
         goto err1;
     }
 
     // Mount the FS on the partition
-    if ((err = OS_Filesystem_mount(ks->partition)) != SEOS_SUCCESS)
+    if ((err = OS_Filesystem_mount(ks->partition)) != OS_SUCCESS)
     {
         Debug_LOG_ERROR("Failed to mount partition with filesystem.");
-        return SEOS_ERROR_GENERIC;
+        return OS_ERROR_GENERIC;
     }
 
     // Open the partition and assign it to a filestream factory
     if (!SeosFileStreamFactory_ctor(&ks->fileStream, ks->partition))
     {
         Debug_LOG_ERROR("Failed to create FileStreamFactory");
-        err = SEOS_ERROR_GENERIC;
+        err = OS_ERROR_GENERIC;
         goto err2;
     }
 
     if ((err = OS_Keystore_init(&ks->hKeystore, GET_PARENT_PTR(ks->fileStream),
-                                ks->hCrypto, "keystore")) != SEOS_SUCCESS)
+                                ks->hCrypto, "keystore")) != OS_SUCCESS)
     {
         Debug_LOG_ERROR("OS_Keystore_init() failed with %d", err);
         goto err3;
     }
 
-    return SEOS_SUCCESS;
+    return OS_SUCCESS;
 
 err3:
     SeosFileStreamFactory_dtor(GET_PARENT_PTR(ks->fileStream));
@@ -342,7 +342,7 @@ int run()
     Debug_ASSERT(config.numClients == sizeof(config.clients) /
                  sizeof(config.clients[0]));
 
-    if ((err = initFileSystem(&serverState.fs)) != SEOS_SUCCESS)
+    if ((err = initFileSystem(&serverState.fs)) != OS_SUCCESS)
     {
         return err;
     }
@@ -354,13 +354,13 @@ int run()
 
         // Set up an instance of the Crypto API for each client which is then
         // accessed via its RPC interface
-        if ((err = OS_Crypto_init(&client->hCrypto, &remoteCfg)) != SEOS_SUCCESS)
+        if ((err = OS_Crypto_init(&client->hCrypto, &remoteCfg)) != OS_SUCCESS)
         {
             return err;
         }
 
         // Set up keystore
-        if ((err = initKeyStore(&serverState.fs, i, &client->keys)) != SEOS_SUCCESS)
+        if ((err = initKeyStore(&serverState.fs, i, &client->keys)) != OS_SUCCESS)
         {
             return err;
         }
@@ -376,7 +376,7 @@ int run()
     Debug_ASSERT_PRINTFLN(sem_init_post() == 0, "Failed to post semaphore");
     Debug_ASSERT_PRINTFLN(sem_init_post() == 0, "Failed to post semaphore");
 
-    return SEOS_SUCCESS;
+    return OS_SUCCESS;
 }
 
 // Public Functions ------------------------------------------------------------
@@ -395,16 +395,16 @@ CryptoServer_RPC_loadKey(
 
     if ((owner = getClient(ownerId)) == NULL)
     {
-        return SEOS_ERROR_INVALID_PARAMETER;
+        return OS_ERROR_INVALID_PARAMETER;
     }
     else if (strlen(name) == 0 || strlen(name) > KEYSTORE_NAME_MAX)
     {
-        return SEOS_ERROR_INVALID_PARAMETER;
+        return OS_ERROR_INVALID_PARAMETER;
     }
 
     if ((client = CryptoServer_getClient()) == NULL)
     {
-        return SEOS_ERROR_NOT_FOUND;
+        return OS_ERROR_NOT_FOUND;
     }
 
     // Check if we have access to the key of that owner; a zero indicates NO ACCES
@@ -413,21 +413,21 @@ CryptoServer_RPC_loadKey(
     {
         Debug_LOG_WARNING("Client with ID=%u failed to access the keystore of ID=%u",
                           client->id, owner->id);
-        return SEOS_ERROR_ACCESS_DENIED;
+        return OS_ERROR_ACCESS_DENIED;
     }
 
     // Here we access the data stored for another client; however, since all
     // RPC calls are serialized, we cannot have a race-condition because there
     // is only one RPC client active at a time.
     if ((err = OS_Keystore_loadKey(owner->keys.hKeystore, name, &data,
-                                   &dataLen)) != SEOS_SUCCESS)
+                                   &dataLen)) != OS_SUCCESS)
     {
         return err;
     }
 
     // Import key data into the remote Crypto API, so it can be used there.
     if ((err = OS_CryptoKey_import(&hMyKey, client->hCrypto,
-                                   &data)) != SEOS_SUCCESS)
+                                   &data)) != OS_SUCCESS)
     {
         return err;
     }
@@ -435,7 +435,7 @@ CryptoServer_RPC_loadKey(
     // Send back only the pointer to the LIB Key object
     *ptr = OS_Crypto_getLibObject(hMyKey);
 
-    return SEOS_SUCCESS;
+    return OS_SUCCESS;
 }
 
 OS_Error_t
@@ -450,17 +450,17 @@ CryptoServer_RPC_storeKey(
 
     if ((client = CryptoServer_getClient()) == NULL)
     {
-        return SEOS_ERROR_NOT_FOUND;
+        return OS_ERROR_NOT_FOUND;
     }
     else if (strlen(name) == 0 || strlen(name) > KEYSTORE_NAME_MAX)
     {
-        return SEOS_ERROR_INVALID_PARAMETER;
+        return OS_ERROR_INVALID_PARAMETER;
     }
 
     // We get an API Key object from the RPC client, which has the API context of
     // the CLIENT attached to it. This needs to be changed to the local API context.
     if ((err = OS_Crypto_migrateLibObject(&hMyKey, client->hCrypto,
-                                       ptr, true)) != SEOS_SUCCESS)
+                                       ptr, true)) != OS_SUCCESS)
     {
         return err;
     }
@@ -468,7 +468,7 @@ CryptoServer_RPC_storeKey(
     // Now we can use that key object and export its data; we can always do this
     // since we go through the API which uses the RPC server's LIB instance (the
     // same the RPC client refers to from afar)..
-    if ((err = OS_CryptoKey_export(hMyKey, &data)) != SEOS_SUCCESS)
+    if ((err = OS_CryptoKey_export(hMyKey, &data)) != OS_SUCCESS)
     {
         return err;
     }
@@ -477,12 +477,12 @@ CryptoServer_RPC_storeKey(
     if (client->keys.bytesWritten + sizeof(data) >
         config.clients[client->id].storageLimit)
     {
-        return SEOS_ERROR_INSUFFICIENT_SPACE;
+        return OS_ERROR_INSUFFICIENT_SPACE;
     }
 
     // Store key in keystore
     if ((err = OS_Keystore_storeKey(client->keys.hKeystore, name, &data,
-                                    sizeof(data))) == SEOS_SUCCESS)
+                                    sizeof(data))) == OS_SUCCESS)
     {
         client->keys.bytesWritten += sizeof(data);
     }
