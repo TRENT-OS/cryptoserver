@@ -1,12 +1,12 @@
 /**
  * Copyright (C) 2019-2020, Hensoldt Cyber GmbH
  *
- * @defgroup SEOS CryptoServer
+ * @defgroup OS CryptoServer
  * @{
  *
  * @file CryptoServer.h
  *
- * @brief SEOS CryptoServer interface
+ * @brief OS CryptoServer interface
  *
  */
 
@@ -31,8 +31,8 @@
  *
  * NOTE: The key has to be freed once it is no longer used.
  *
- * @param hKey (required) pointer to handle of SEOS Crypto Key object
- * @param hCrypto (required) handle of SEOS Crypto API
+ * @param hKey (required) pointer to handle of OS Crypto Key object
+ * @param hCrypto (required) handle of OS Crypto API
  * @param ownerId (required) ID of key's owner
  * @param name (required) name of key
  *
@@ -85,10 +85,10 @@ CryptoServer_loadKey(
  * NOTE: Due to restrictions of the underlying file systems, key names are limited
  *       to 8 characters.
  *
- * @param hKey (required) handle of SEOS Crypto Key object
+ * @param hKey (required) handle of OS Crypto Key object
  * @param name (required) name of key
  *
- * @param hCrypto (required) handle of SEOS Crypto API
+ * @param hCrypto (required) handle of OS Crypto API
  *
  * @return an error code
  * @return an error code

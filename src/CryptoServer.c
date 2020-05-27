@@ -102,7 +102,7 @@ entropy(
  * 1. The CryptoServer interface, as explicitly defined in the relevant CAMKES
  *    file and as visible in CrytpoServer.h and this file.
  * 2. The CryptoLibServer interface, due to the fact that this component is
- *    linked with SEOS_CRYPTO_WITH_RCP_SERVER and thus contains the Crypto API
+ *    linked with OS_CRYPTO_WITH_RCP_SERVER and thus contains the Crypto API
  *    LIB and RPC Server code.
  * Mapping to the data structure is based on the numeric "sender ID" which each
  * CAMKES call to an interface provides. However, we need to ensure that

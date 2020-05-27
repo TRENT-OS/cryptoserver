@@ -1,16 +1,16 @@
 cmake_minimum_required(VERSION 3.7.2)
 
 seos_use_libs(
-    SEOS_LIBS
-    SEOS_CHANMUX
-    SEOS_CRYPTO_WITH_RPC_SERVER
-    SEOS_PARTITION_MANAGER
-    SEOS_FILESYSTEM_CORE
-    SEOS_FILESYSTEM_FAT
-    SEOS_KEYSTORE
+    OS_LIBS
+    OS_CHANMUX
+    OS_CRYPTO_WITH_RPC_SERVER
+    OS_PARTITION_MANAGER
+    OS_FILESYSTEM_CORE
+    OS_FILESYSTEM_FAT
+    OS_KEYSTORE
     # TODO: SPIFFS is not used, but still this is needed to compile stuff
     #       from fs-core
-    SEOS_FILESYSTEM_SPIFFS
+    OS_FILESYSTEM_SPIFFS
 )
 
 project(cryptoserver C)
@@ -23,9 +23,9 @@ DeclareCAmkESComponent(CryptoServer
     C_FLAGS
         -Wall -Werror
         # filesystem
-        -DSEOS_FS_BUILD_AS_LIB
+        -DOS_FS_BUILD_AS_LIB
         # partition manager
-        -DSEOS_PARTITION_MANAGER_BUILD_AS_LIB
+        -DOS_PARTITION_MANAGER_BUILD_AS_LIB
     LIBS
         seos_core_api
         seos_libs
