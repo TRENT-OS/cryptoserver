@@ -9,8 +9,8 @@
 
 // FS includes
 #include "ChanMuxNvmDriver.h"
-#include "seos_pm_api.h"
-#include "SeosFileStreamFactory.h"
+#include "OS_PartitionManager.h"
+#include "OS_FilesystemFileStreamFactory.h"
 #include "partition_io_layer.h"
 
 #include "LibDebug/Debug.h"
@@ -57,7 +57,7 @@ typedef struct
     OS_Keystore_Handle_t hKeystore;
     OS_Crypto_Handle_t hCrypto;
     hPartition_t partition;
-    SeosFileStreamFactory fileStream;
+    OS_FilesystemFileStreamFactory_t fileStream;
     size_t bytesWritten;
 } CryptoServer_KeyStore;
 
@@ -164,7 +164,7 @@ initFileSystem(
     CryptoServer_FileSystem* fs)
 {
     OS_Error_t err;
-    pm_disk_data_t disk;
+    OS_PartitionManagerDataTypes_DiskData_t disk;
 
     if (!ChanMuxNvmDriver_ctor(
             &(fs->chanMuxNvmDriver),
@@ -175,16 +175,16 @@ initFileSystem(
     }
 
     // Set up partition manager
-    if ((err = partition_manager_init(
+    if ((err = OS_PartitionManager_init(
                     ChanMuxNvmDriver_get_nvm(
                         &fs->chanMuxNvmDriver))) != OS_SUCCESS)
     {
-        Debug_LOG_ERROR("partition_manager_init() failed with %d", err);
+        Debug_LOG_ERROR("OS_PartitionManager_init() failed with %d", err);
         goto err0;
     }
-    if ((err = partition_manager_get_info_disk(&disk)) != OS_SUCCESS)
+    if ((err = OS_PartitionManager_getInfoDisk(&disk)) != OS_SUCCESS)
     {
-        Debug_LOG_ERROR("partition_manager_get_info_disk() failed with %d", err);
+        Debug_LOG_ERROR("OS_PartitionManager_getInfoDisk() failed with %d", err);
         goto err0;
     }
 
@@ -206,7 +206,7 @@ initKeyStore(
     CryptoServer_KeyStore*   ks)
 {
     OS_Error_t err;
-    pm_partition_data_t partition;
+    OS_PartitionManagerDataTypes_PartitionData_t partition;
     OS_Crypto_Config_t localCfg =
     {
         .mode = OS_Crypto_MODE_LIBRARY_ONLY,
@@ -221,10 +221,10 @@ initKeyStore(
     }
 
     // Read partition info to get the internal ID
-    if ((err = partition_manager_get_info_partition(index,
+    if ((err = OS_PartitionManager_getInfoPartition(index,
                                                     &partition)) != OS_SUCCESS)
     {
-        Debug_LOG_ERROR("partition_manager_get_info_partition() failed with %d", err);
+        Debug_LOG_ERROR("OS_PartitionManager_getInfoPartition() failed with %d", err);
         goto err0;
     }
 
@@ -268,7 +268,7 @@ initKeyStore(
     }
 
     // Open the partition and assign it to a filestream factory
-    if (!SeosFileStreamFactory_ctor(&ks->fileStream, ks->partition))
+    if (!OS_FilesystemFileStreamFactory_ctor(&ks->fileStream, ks->partition))
     {
         Debug_LOG_ERROR("Failed to create FileStreamFactory");
         err = OS_ERROR_GENERIC;
@@ -285,7 +285,7 @@ initKeyStore(
     return OS_SUCCESS;
 
 err3:
-    SeosFileStreamFactory_dtor(GET_PARENT_PTR(ks->fileStream));
+    OS_FilesystemFileStreamFactory_dtor(GET_PARENT_PTR(ks->fileStream));
 err2:
     OS_Filesystem_unmount(ks->partition);
 err1:
