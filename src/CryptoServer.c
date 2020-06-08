@@ -27,8 +27,15 @@ static const ChanMuxClientConfig_t chanMuxClientConfig =
     .read  = chanMux_rpc_read
 };
 
+// Config for Crypto API
+static int entropy(void* ctx, unsigned char* buf, size_t len);
+static const OS_Crypto_Config_t remoteCfg =
+{
+    .mode = OS_Crypto_MODE_SERVER,
+    .dataport = OS_DATAPORT_ASSIGN(CryptoLibDataport),
+    .library.rng.entropy = entropy
+};
 
-#define CRYPTO_DATAPORT CryptoLibDataport
 // Allow at most this amount of clients
 #define CRYPTO_CLIENTS_MAX 16
 
@@ -327,12 +334,6 @@ int run()
 {
     OS_Error_t err;
     CryptoServer_Client* client;
-    OS_Crypto_Config_t remoteCfg =
-    {
-        .mode = OS_Crypto_MODE_SERVER,
-        .library.rng.entropy = entropy,
-        .rpc.server.dataPort = CRYPTO_DATAPORT
-    };
 
     // Make sure we don't exceed our limit
     Debug_ASSERT(config.numClients <= CRYPTO_CLIENTS_MAX);
