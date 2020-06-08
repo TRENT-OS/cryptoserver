@@ -19,7 +19,8 @@
 #include <string.h>
 
 // Defines for ChanMux
-static const ChanMuxClientConfig_t chanMuxClientConfig = {
+static const ChanMuxClientConfig_t chanMuxClientConfig =
+{
     .port  = CHANMUX_DATAPORT_DUPLEX_SHARED_ASSIGN(chanMux_port),
     .wait  = chanMux_event_hasData_wait,
     .write = chanMux_rpc_write,
@@ -176,8 +177,8 @@ initFileSystem(
 
     // Set up partition manager
     if ((err = OS_PartitionManager_init(
-                    ChanMuxNvmDriver_get_nvm(
-                        &fs->chanMuxNvmDriver))) != OS_SUCCESS)
+                   ChanMuxNvmDriver_get_nvm(
+                       &fs->chanMuxNvmDriver))) != OS_SUCCESS)
     {
         Debug_LOG_ERROR("OS_PartitionManager_init() failed with %d", err);
         goto err0;
@@ -460,7 +461,7 @@ CryptoServer_RPC_storeKey(
     // We get an API Key object from the RPC client, which has the API context of
     // the CLIENT attached to it. This needs to be changed to the local API context.
     if ((err = OS_Crypto_migrateLibObject(&hMyKey, client->hCrypto,
-                                       ptr, true)) != OS_SUCCESS)
+                                          ptr, true)) != OS_SUCCESS)
     {
         return err;
     }
