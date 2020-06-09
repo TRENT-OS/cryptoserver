@@ -38,7 +38,7 @@ function(DeclareCAmkESComponent_CryptoServer name)
         OS_PARTITION_MANAGER
         OS_FILESYSTEM_CORE
         OS_FILESYSTEM_FAT
-        OS_FILESYSTEM_SPIFFS # unused, but needed by SEOS_FILESYSTEM_CORE
+        OS_FILESYSTEM_SPIFFS # unused, but needed by OS_FILESYSTEM_CORE
         OS_KEYSTORE
     )
 
@@ -56,19 +56,19 @@ function(DeclareCAmkESComponent_CryptoServer name)
             -DOS_FS_BUILD_AS_LIB
             -DOS_PARTITION_MANAGER_BUILD_AS_LIB
         LIBS
-            seos_core_api
-            seos_libs
-            seos_crypto_with_rpc_server
+            os_core_api
+            os_libs
+            os_crypto_with_rpc_server
             # all setting blow are for the keystore, there it still a lot of
             # re-work needed to streamline this. We should not need ChanMux or
             # the partition manager here, all we need is an NVM interace to
             # access a raw partition
             proxy_nvm
-            seos_partition_manager
-            seos_filesystem_core
-            seos_filesystem_fat
-            seos_filesystem_spiffs # unused, but needed by seos_filesystem_core
-            seos_keystore
+            os_partition_manager
+            os_filesystem_core
+            os_filesystem_fat
+            os_filesystem_spiffs # unused, but needed by os_filesystem_core
+            os_keystore
     )
 
     #---------------------------------------------------------------------------
@@ -87,7 +87,7 @@ function(DeclareCAmkESComponent_CryptoServer name)
 
     target_link_libraries(${PROJECT_NAME}
         INTERFACE
-            seos_crypto_with_rpc_client
+            os_crypto_with_rpc_client
     )
 
 endfunction()
