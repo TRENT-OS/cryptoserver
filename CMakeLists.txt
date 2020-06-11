@@ -26,22 +26,6 @@ set(COMPONENT_CryptoServer_DIR ${CMAKE_CURRENT_LIST_DIR})
 #
 function(DeclareCAmkESComponent_CryptoServer name)
 
-    os_use_libs(
-        OS_LIBS
-        OS_CRYPTO_WITH_RPC_SERVER
-        OS_CRYPTO_WITH_RPC_CLIENT
-        # all setting blow are for the keystore, there it still a lot of
-        # re-work needed to streamline this. We should not need ChanMux or the
-        # partition manager here, all we need is an NVM interace to access a
-        # raw PARTITION
-        OS_CHANMUX
-        OS_PARTITION_MANAGER
-        OS_FILESYSTEM_CORE
-        OS_FILESYSTEM_FAT
-        OS_FILESYSTEM_SPIFFS # unused, but needed by OS_FILESYSTEM_CORE
-        OS_KEYSTORE
-    )
-
     #---------------------------------------------------------------------------
     DeclareCAmkESComponent(${name}
         INCLUDES
