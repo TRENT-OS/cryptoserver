@@ -59,7 +59,7 @@ function(DeclareCAmkESComponent_CryptoServer name)
             os_core_api
             os_libs
             os_crypto_with_rpc_server
-            # all setting blow are for the keystore, there it still a lot of
+            # all settings blow are for the keystore, there is still a lot of
             # re-work needed to streamline this. We should not need ChanMux or
             # the partition manager here, all we need is an NVM interace to
             # access a raw partition
