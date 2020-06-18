@@ -4,6 +4,7 @@
 
 import <if_ChanMux.camkes>;
 import <if_OS_Crypto.camkes>;
+import <if_OS_EntropySource.camkes>;
 
 import "if_CryptoServer.camkes";
 
@@ -31,6 +32,10 @@ component CryptoServer {
 
     // CryptoServer interface, interface threads wait for ServerReady
     provides    if_CryptoServer             CryptoServer;
+
+    // For EntropySource
+    uses        if_OS_EntropySource         entropySource_rpc;
+    dataport    Buf                         entropySource_dp;
 
     // ChanMux for KeyStore NVM communication
     dataport    Buf                         chanMux_port;

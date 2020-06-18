@@ -28,12 +28,12 @@ static const ChanMuxClientConfig_t chanMuxClientConfig =
 };
 
 // Config for Crypto API
-static int entropy(void* ctx, unsigned char* buf, size_t len);
 static const OS_Crypto_Config_t remoteCfg =
 {
     .mode = OS_Crypto_MODE_SERVER,
     .dataport = OS_DATAPORT_ASSIGN(CryptoLibDataport),
-    .library.rng.entropy = entropy
+    .library.entropy = OS_CRYPTO_ASSIGN_EntropySource(entropySource_rpc_read,
+                                                      entropySource_dp),
 };
 
 // Allow at most this amount of clients
@@ -92,17 +92,6 @@ typedef struct
 static CryptoServer_State serverState;
 
 // Private Functions -----------------------------------------------------------
-
-static int
-entropy(
-    void*          ctx,
-    unsigned char* buf,
-    size_t         len)
-{
-    // This would be the platform specific function to obtain entropy
-    memset(buf, 0, len);
-    return 0;
-}
 
 /*
  * Here we map the RPC client to his respective data structures. What is important
@@ -218,7 +207,8 @@ initKeyStore(
     OS_Crypto_Config_t localCfg =
     {
         .mode = OS_Crypto_MODE_LIBRARY_ONLY,
-        .library.rng.entropy = entropy,
+        .library.entropy = OS_CRYPTO_ASSIGN_EntropySource(entropySource_rpc_read,
+                                                          entropySource_dp),
     };
 
     // We need an instance of the Crypto API for the keystore for hashing etc..
