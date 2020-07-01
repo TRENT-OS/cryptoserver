@@ -8,6 +8,8 @@ import <if_OS_EntropySource.camkes>;
 
 import "if_CryptoServer.camkes";
 
+#include "ChanMux/ChanMuxHelper.camkes"
+
 struct disk_info {
     int disk_size;
     int block_size_default;
@@ -38,9 +40,8 @@ component CryptoServer {
     dataport    Buf                         entropySource_dp;
 
     // ChanMux for KeyStore NVM communication
-    dataport    Buf                         chanMux_port;
-    uses        ChanMuxDriverInf            chanMux_rpc;
-    consumes    DataAvailableEvent          chanMux_event_hasData;
+    DECLARE_CHANMUX_INTERFACE_USER(chanMux)
+    DECLARE_CHANMUX_CHANNEL_CONNECTOR(chanMux, chan)
 
     // Configure clients connected to CryptoServer
     attribute   serverConfig                config;
