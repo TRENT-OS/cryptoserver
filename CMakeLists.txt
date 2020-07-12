@@ -6,13 +6,17 @@
 
 cmake_minimum_required(VERSION 3.7.2)
 
-#-------------------------------------------------------------------------------
-# we can't use CMAKE_CURRENT_LIST_DIR in a function/macro, because that will
-# give us the dir of the file that is invoking the function/macro. Until we
-# have CmMake 3.17 which provides CMAKE_CURRENT_FUNCTION_LIST_DIR, the work
-# around is creating a global variable here with the directory and then use
-# this in the function below.
-set(COMPONENT_CryptoServer_DIR ${CMAKE_CURRENT_LIST_DIR})
+# we cannot use CMAKE_CURRENT_LIST_DIR in a function or macro, because that
+# would give us the dir of the file that is invoking the macro. The work around
+# is that we create a global (ie cached and flagged as internal) variable here
+# and then use it in the macro below. As a convenient side effect we don't
+# require anybody else to provide any helper variables, this CMake file becomes
+# fully self-contained and "copy&paste safe".
+set(
+    OS_COMPONENT_CryptoServer_DIR
+    "${CMAKE_CURRENT_LIST_DIR}"
+    CACHE INTERNAL ""
+)
 
 
 #-------------------------------------------------------------------------------
@@ -35,9 +39,9 @@ function(DeclareCAmkESComponent_CryptoServer
             # we state this folder explicitly and don't put CryptoServer_client
             # into the libs, because it's semantically broken when the server
             # uses the client lib.
-            ${COMPONENT_CryptoServer_DIR}/inc
+            ${OS_COMPONENT_CryptoServer_DIR}/inc
         SOURCES
-            ${COMPONENT_CryptoServer_DIR}/src/CryptoServer.c
+            ${OS_COMPONENT_CryptoServer_DIR}/src/CryptoServer.c
         C_FLAGS
             -Wall -Werror
             -DOS_FS_BUILD_AS_LIB
@@ -69,7 +73,7 @@ function(DeclareCAmkESComponent_CryptoServer
 
     target_include_directories(${PROJECT_NAME}
         INTERFACE
-            ${COMPONENT_CryptoServer_DIR}/inc
+            ${OS_COMPONENT_CryptoServer_DIR}/inc
     )
 
     target_link_libraries(${PROJECT_NAME}
