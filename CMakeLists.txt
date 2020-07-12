@@ -22,7 +22,8 @@ set(COMPONENT_CryptoServer_DIR ${CMAKE_CURRENT_LIST_DIR})
 # Parameters:
 #
 #   <name>
-#     required, component instance name
+#     component instance name. The server will be called "<name>" and the
+#     corresponding client library will be called "<name>_client"
 #
 function(DeclareCAmkESComponent_CryptoServer
     name
