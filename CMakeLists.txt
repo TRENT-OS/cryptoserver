@@ -24,7 +24,9 @@ set(COMPONENT_CryptoServer_DIR ${CMAKE_CURRENT_LIST_DIR})
 #   <name>
 #     required, component instance name
 #
-function(DeclareCAmkESComponent_CryptoServer name)
+function(DeclareCAmkESComponent_CryptoServer
+    name
+)
 
     #---------------------------------------------------------------------------
     DeclareCAmkESComponent(${name}
