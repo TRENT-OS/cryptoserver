@@ -2,13 +2,11 @@
  * Copyright (C) 2019, Hensoldt Cyber GmbH
  */
 
-import <if_ChanMux.camkes>;
 import <if_OS_Crypto.camkes>;
 import <if_OS_EntropySource.camkes>;
+import <if_OS_Storage.camkes>;
 
 import "if_CryptoServer.camkes";
-
-#include "ChanMux/ChanMuxHelper.camkes"
 
 struct CryptoServer_ClientConfig {
     int storageLimit;
@@ -34,9 +32,9 @@ component CryptoServer {
     uses        if_OS_EntropySource         entropySource_rpc;
     dataport    Buf                         entropySource_dp;
 
-    // ChanMux for KeyStore NVM communication
-    DECLARE_CHANMUX_INTERFACE_USER(chanMux)
-    DECLARE_CHANMUX_CHANNEL_CONNECTOR(chanMux, chan)
+    // For underlying storage
+    dataport    Buf                         storage_dp;
+    uses        if_OS_Storage               storage_rpc;
 
     // Configure clients connected to CryptoServer
     attribute   CryptoServer_Config         config;

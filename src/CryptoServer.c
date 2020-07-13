@@ -3,50 +3,40 @@
  */
 
 // OS includes
-#include "OS_Filesystem.h"
+#include "OS_FileSystem.h"
 #include "OS_Crypto.h"
 #include "OS_Keystore.h"
 
-// FS includes
-#include "ChanMuxNvmDriver.h"
-#include "OS_PartitionManager.h"
-#include "OS_FilesystemFileStreamFactory.h"
-#include "partition_io_layer.h"
-
 #include "LibDebug/Debug.h"
 
-#include <camkes.h>
 #include <string.h>
 
-// Defines for ChanMux
-static const ChanMuxClientConfig_t chanMuxClientConfig =
-{
-    .port  = CHANMUX_DATAPORT_ASSIGN(chanMux_chan_portRead,
-                                     chanMux_chan_portWrite),
-    .wait  = chanMux_chan_EventHasData_wait,
-    .write = chanMux_Rpc_write,
-    .read  = chanMux_Rpc_read
-};
+#include <camkes.h>
 
 // Config for Crypto API
-static const OS_Crypto_Config_t remoteCfg =
+static const OS_Crypto_Config_t cfgCrypto =
 {
     .mode = OS_Crypto_MODE_SERVER,
     .dataport = OS_DATAPORT_ASSIGN(CryptoLibDataport),
-    .library.entropy = OS_CRYPTO_ASSIGN_EntropySource(entropySource_rpc_read,
-                                                      entropySource_dp),
+    .library.entropy = OS_CRYPTO_ASSIGN_EntropySource(
+        entropySource_rpc_read,
+        entropySource_dp),
+};
+// Config for FileSystem API
+static const OS_FileSystem_Config_t cfgFs =
+{
+    .type = OS_FileSystem_Type_LITTLEFS,
+    .size = OS_FileSystem_STORAGE_MAX,
+    .storage = OS_FILESYSTEM_ASSIGN_Storage(
+        storage_rpc,
+        storage_dp),
 };
 
 // Allow at most this amount of clients
 #define CRYPTO_CLIENTS_MAX 16
 
-// Maximum length of keys with FAT32 as FS
+// Maximum length of keynames
 #define KEYSTORE_NAME_MAX 8
-
-// All the FS/KeyStore stuff have an underlying "parent" pointer for the "real"
-// object
-#define GET_PARENT_PTR(o) (&((o).parent))
-
 /*
  * These are auto-generated based on interface names; they give unique ID
  * assigned to the user of the interface.
@@ -58,15 +48,15 @@ static const OS_Crypto_Config_t remoteCfg =
  * IDs must be same for each interface user on both interfaces, see also the
  * comment below.
  */
-seL4_Word CryptoServer_get_sender_id(void);
-seL4_Word CryptoLibServer_get_sender_id(void);
+seL4_Word CryptoServer_get_sender_id(
+    void);
+seL4_Word CryptoLibServer_get_sender_id(
+    void);
 
 typedef struct
 {
     OS_Keystore_Handle_t hKeystore;
     OS_Crypto_Handle_t hCrypto;
-    hPartition_t partition;
-    OS_FilesystemFileStreamFactory_t fileStream;
     size_t bytesWritten;
 } CryptoServer_KeyStore;
 
@@ -79,13 +69,8 @@ typedef struct
 
 typedef struct
 {
-    ChanMuxNvmDriver chanMuxNvmDriver;
-} CryptoServer_FileSystem;
-
-typedef struct
-{
     CryptoServer_Client clients[CRYPTO_CLIENTS_MAX];
-    CryptoServer_FileSystem fs;
+    OS_FileSystem_Handle_t hFs;
 } CryptoServer_State;
 
 // Here we keep track of all the respective contexts and the list of clients
@@ -159,136 +144,73 @@ CryptoLibServer_getClient()
 
 static OS_Error_t
 initFileSystem(
-    CryptoServer_FileSystem* fs)
+    OS_FileSystem_Handle_t* hFs)
 {
     OS_Error_t err;
-    OS_PartitionManagerDataTypes_DiskData_t disk;
 
-    if (!ChanMuxNvmDriver_ctor(
-            &(fs->chanMuxNvmDriver),
-            &chanMuxClientConfig))
+    if ((err = OS_FileSystem_init(hFs, &cfgFs)) != OS_SUCCESS)
     {
-        Debug_LOG_ERROR("ChanMuxNvmDriver_ctor() failed");
-        return OS_ERROR_GENERIC;
+        Debug_LOG_ERROR("OS_FileSystem_init() failed with %d", err);
+        return err;
     }
 
-    // Set up partition manager
-    if ((err = OS_PartitionManager_init(
-                   ChanMuxNvmDriver_get_nvm(
-                       &fs->chanMuxNvmDriver))) != OS_SUCCESS)
+    // Try mounting, if it fails we format the disk again and try another time
+    if ((err = OS_FileSystem_mount(*hFs)) != OS_SUCCESS)
     {
-        Debug_LOG_ERROR("OS_PartitionManager_init() failed with %d", err);
-        goto err0;
+        Debug_LOG_INFO("Mounting fileystem failed, formatting the storage now");
+        if ((err = OS_FileSystem_format(*hFs)) != OS_SUCCESS)
+        {
+            Debug_LOG_ERROR("OS_FileSystem_format() failed with %d", err);
+            return err;
+        }
+        if ((err = OS_FileSystem_mount(*hFs)) != OS_SUCCESS)
+        {
+            Debug_LOG_ERROR("OS_FileSystem_mount() finally failed with %d", err);
+            return err;
+        }
     }
-    if ((err = OS_PartitionManager_getInfoDisk(&disk)) != OS_SUCCESS)
+    else
     {
-        Debug_LOG_ERROR("OS_PartitionManager_getInfoDisk() failed with %d", err);
-        goto err0;
+        Debug_LOG_INFO("Mounted existing fileystem");
     }
-
-    // Make sure we have as many partitions as we have clients
-    Debug_ASSERT(config.numClients == disk.partition_count);
-
-    return OS_SUCCESS;
-
-err0:
-    ChanMuxNvmDriver_dtor(&fs->chanMuxNvmDriver);
 
     return err;
 }
 
 static OS_Error_t
 initKeyStore(
-    CryptoServer_FileSystem* fs,
-    const uint8_t            index,
-    CryptoServer_KeyStore*   ks)
+    OS_FileSystem_Handle_t hFs,
+    const uint8_t          index,
+    CryptoServer_KeyStore* ks)
 {
     OS_Error_t err;
-    OS_PartitionManagerDataTypes_PartitionData_t partition;
-    OS_Crypto_Config_t localCfg =
+    char ksName[16];
+    OS_Crypto_Config_t cfg =
     {
         .mode = OS_Crypto_MODE_LIBRARY_ONLY,
-        .library.entropy = OS_CRYPTO_ASSIGN_EntropySource(entropySource_rpc_read,
-                                                          entropySource_dp),
+        .library.entropy = OS_CRYPTO_ASSIGN_EntropySource(
+            entropySource_rpc_read,
+            entropySource_dp),
     };
 
     // We need an instance of the Crypto API for the keystore for hashing etc..
-    if ((err = OS_Crypto_init(&ks->hCrypto, &localCfg)) != OS_SUCCESS)
+    if ((err = OS_Crypto_init(&ks->hCrypto, &cfg)) != OS_SUCCESS)
     {
         Debug_LOG_ERROR("OS_Crypto_init() failed with %d", err);
         return err;
     }
 
-    // Read partition info to get the internal ID
-    if ((err = OS_PartitionManager_getInfoPartition(index,
-                                                    &partition)) != OS_SUCCESS)
-    {
-        Debug_LOG_ERROR("OS_PartitionManager_getInfoPartition() failed with %d", err);
-        goto err0;
-    }
-
-    // Initialize the partition with RW access
-    if ((err = OS_Filesystem_init(partition.partition_id, 0)) != OS_SUCCESS)
-    {
-        Debug_LOG_ERROR("OS_Filesystem_init() failed with %d", err);
-        goto err0;
-    }
-
-    // Open the partition
-    ks->partition = OS_Filesystem_open(partition.partition_id);
-    if (!OS_Filesystem_validatePartitionHandle(ks->partition))
-    {
-        Debug_LOG_ERROR("Failed to open partition");
-        err = OS_ERROR_GENERIC;
-        goto err0;
-    }
-
-    // Create FS on partition
-    if ((err = OS_Filesystem_create(
-                   ks->partition,
-                   FS_FORMAT,
-                   partition.partition_size,
-                   0,  // default value: size of sector:   512
-                   0,  // default value: size of cluster:  512
-                   0,  // default value: reserved sectors count: FAT12/FAT16 = 1; FAT32 = 3
-                   0,  // default value: count file/dir entries: FAT12/FAT16 = 16; FAT32 = 0
-                   0,  // default value: count header sectors: 512
-                   FS_PARTITION_OVERWRITE_CREATE)) != OS_SUCCESS)
-    {
-        Debug_LOG_ERROR("OS_Filesystem_create() failed with %d", err);
-        goto err1;
-    }
-
-    // Mount the FS on the partition
-    if ((err = OS_Filesystem_mount(ks->partition)) != OS_SUCCESS)
-    {
-        Debug_LOG_ERROR("Failed to mount partition with filesystem.");
-        return OS_ERROR_GENERIC;
-    }
-
-    // Open the partition and assign it to a filestream factory
-    if (!OS_FilesystemFileStreamFactory_ctor(&ks->fileStream, ks->partition))
-    {
-        Debug_LOG_ERROR("Failed to create FileStreamFactory");
-        err = OS_ERROR_GENERIC;
-        goto err2;
-    }
-
-    if ((err = OS_Keystore_init(&ks->hKeystore, GET_PARENT_PTR(ks->fileStream),
-                                ks->hCrypto, "keystore")) != OS_SUCCESS)
+    // Every keystore needs its own instance name
+    snprintf(ksName, sizeof(ksName), "kstore%02i", index);
+    if ((err = OS_Keystore_init(&ks->hKeystore, hFs, ks->hCrypto,
+                                ksName)) != OS_SUCCESS)
     {
         Debug_LOG_ERROR("OS_Keystore_init() failed with %d", err);
-        goto err3;
+        goto err0;
     }
 
     return OS_SUCCESS;
 
-err3:
-    OS_FilesystemFileStreamFactory_dtor(GET_PARENT_PTR(ks->fileStream));
-err2:
-    OS_Filesystem_unmount(ks->partition);
-err1:
-    OS_Filesystem_close(ks->partition);
 err0:
     OS_Crypto_free(ks->hCrypto);
 
@@ -317,9 +239,6 @@ CryptoLibServer_getCrypto(
 /*
  * Init filesystem, keystore and crypto states for every client before allowing the
  * RPC components to access them.
- *
- * NOTE: Ideally, we would like to do this in post_init() but OS_Filesystem_return()
- *       does not return, so that needs further investigation.
  */
 int run()
 {
@@ -335,7 +254,7 @@ int run()
     Debug_ASSERT(config.numClients == sizeof(config.clients) /
                  sizeof(config.clients[0]));
 
-    if ((err = initFileSystem(&serverState.fs)) != OS_SUCCESS)
+    if ((err = initFileSystem(&serverState.hFs)) != OS_SUCCESS)
     {
         return err;
     }
@@ -347,13 +266,13 @@ int run()
 
         // Set up an instance of the Crypto API for each client which is then
         // accessed via its RPC interface
-        if ((err = OS_Crypto_init(&client->hCrypto, &remoteCfg)) != OS_SUCCESS)
+        if ((err = OS_Crypto_init(&client->hCrypto, &cfgCrypto)) != OS_SUCCESS)
         {
             return err;
         }
 
         // Set up keystore
-        if ((err = initKeyStore(&serverState.fs, i, &client->keys)) != OS_SUCCESS)
+        if ((err = initKeyStore(serverState.hFs, i, &client->keys)) != OS_SUCCESS)
         {
             return err;
         }

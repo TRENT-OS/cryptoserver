@@ -35,30 +35,16 @@ function(DeclareCAmkESComponent_CryptoServer
 
     #---------------------------------------------------------------------------
     DeclareCAmkESComponent(${name}
-        INCLUDES
-            # we state this folder explicitly and don't put CryptoServer_client
-            # into the libs, because it's semantically broken when the server
-            # uses the client lib.
-            ${OS_COMPONENT_CryptoServer_DIR}/inc
         SOURCES
             ${OS_COMPONENT_CryptoServer_DIR}/src/CryptoServer.c
         C_FLAGS
-            -Wall -Werror
-            -DOS_FS_BUILD_AS_LIB
-            -DOS_PARTITION_MANAGER_BUILD_AS_LIB
+            -Wall
+            -Werror
         LIBS
             os_core_api
             os_libs
             os_crypto_with_rpc_server
-            # all settings blow are for the keystore, there is still a lot of
-            # re-work needed to streamline this. We should not need ChanMux or
-            # the partition manager here, all we need is an NVM interace to
-            # access a raw partition
-            proxy_nvm
-            os_partition_manager
-            os_filesystem_core
-            os_filesystem_fat
-            os_filesystem_spiffs # unused, but needed by os_filesystem_core
+            os_filesystem
             os_keystore
     )
 
