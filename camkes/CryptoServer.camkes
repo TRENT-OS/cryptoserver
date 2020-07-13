@@ -15,14 +15,14 @@ struct disk_info {
     int block_size_default;
 }
 
-struct clientConfig {
+struct CryptoServer_ClientConfig {
     int storageLimit;
     int allowedIds[];
 }
 
-struct serverConfig {
+struct CryptoServer_Config {
     int numClients;
-    clientConfig clients[];
+    CryptoServer_ClientConfig clients[];
 }
 
 component CryptoServer {
@@ -44,7 +44,7 @@ component CryptoServer {
     DECLARE_CHANMUX_CHANNEL_CONNECTOR(chanMux, chan)
 
     // Configure clients connected to CryptoServer
-    attribute   serverConfig                config;
+    attribute   CryptoServer_Config         config;
 
     // Semaphore for synching RPC threads with init process
     has         semaphore                   sem_init;
