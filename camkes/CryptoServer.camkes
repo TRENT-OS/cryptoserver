@@ -10,11 +10,6 @@ import "if_CryptoServer.camkes";
 
 #include "ChanMux/ChanMuxHelper.camkes"
 
-struct disk_info {
-    int disk_size;
-    int block_size_default;
-}
-
 struct CryptoServer_ClientConfig {
     int storageLimit;
     int allowedIds[];
