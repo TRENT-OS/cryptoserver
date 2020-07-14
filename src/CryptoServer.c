@@ -17,7 +17,7 @@
 static const OS_Crypto_Config_t cfgCrypto =
 {
     .mode = OS_Crypto_MODE_SERVER,
-    .dataport = OS_DATAPORT_ASSIGN(CryptoLibDataport),
+    .dataport = OS_DATAPORT_ASSIGN(cryptoLib_dp),
     .library.entropy = OS_CRYPTO_ASSIGN_EntropySource(
         entropySource_rpc_read,
         entropySource_dp),
@@ -48,7 +48,7 @@ static const OS_FileSystem_Config_t cfgFs =
  * IDs must be same for each interface user on both interfaces, see also the
  * comment below.
  */
-seL4_Word CryptoServer_get_sender_id(
+seL4_Word cryptoServer_rpc_get_sender_id(
     void);
 seL4_Word CryptoLibServer_get_sender_id(
     void);
@@ -133,7 +133,7 @@ getClient(
 static CryptoServer_Client*
 CryptoServer_getClient()
 {
-    return getClient(CryptoServer_get_sender_id());
+    return getClient(cryptoServer_rpc_get_sender_id());
 }
 
 static CryptoServer_Client*
@@ -294,7 +294,7 @@ int run()
 // Public Functions ------------------------------------------------------------
 
 OS_Error_t
-CryptoServer_RPC_loadKey(
+cryptoServer_rpc_loadKey(
     CryptoLib_Object_ptr* ptr,
     seL4_Word             ownerId,
     const char*           name)
@@ -351,7 +351,7 @@ CryptoServer_RPC_loadKey(
 }
 
 OS_Error_t
-CryptoServer_RPC_storeKey(
+cryptoServer_rpc_storeKey(
     CryptoLib_Object_ptr ptr,
     const char*          name)
 {

@@ -8,27 +8,14 @@
 procedure if_CryptoServer {
     include "OS_Crypto.h";
 
-    //
-    // A little bit of code is needed on the side of the RPC client. In order for
-    // the client to have a clean CryptoServer_<func> interface, we implement this
-    // client code in the CryptoServer.h header which then calls the RPC-functions
-    // below.
-    //
-    // We name these RPC interface functions thus RPC_<func> so that CAmkES can
-    // generate CryptoServer_RPC_storeKey() and CryptoServer_RPC_loadKey() which
-    // are then used in the header code.
-    //
-    // NOTE: Do not copy this.
-    //
-
     OS_Error_t
-    RPC_storeKey(
+    storeKey(
         in CryptoLib_Object_ptr ptr,
         in string name
     );
 
     OS_Error_t
-    RPC_loadKey(
+    loadKey(
         out CryptoLib_Object_ptr ptr,
         in seL4_Word ownerId,
         in string name
