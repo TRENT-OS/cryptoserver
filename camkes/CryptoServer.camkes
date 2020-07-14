@@ -14,7 +14,6 @@ struct CryptoServer_ClientConfig {
 }
 
 struct CryptoServer_Config {
-    int numClients;
     CryptoServer_ClientConfig clients[];
 }
 

@@ -77,6 +77,11 @@ typedef struct
 // connected to the server
 static CryptoServer_State serverState;
 
+// Clients we have based on the amount of config data
+static const size_t clients = sizeof(cryptoServer_config) /
+                              sizeof(struct CryptoServer_ClientConfig);
+
+
 // Private Functions -----------------------------------------------------------
 
 /*
@@ -121,7 +126,7 @@ getClient(
     // Before we acces the server state, make sure it is initialized.
     Debug_ASSERT_PRINTFLN(sem_init_wait() == 0, "Failed to wait for semaphore");
 
-    client = (id >= config.numClients) ? NULL :
+    client = (id >= clients) ? NULL :
              (serverState.clients[id].id != id) ? NULL :
              &serverState.clients[id];
 
@@ -246,20 +251,20 @@ int run()
     CryptoServer_Client* client;
 
     // Make sure we don't exceed our limit
-    Debug_ASSERT(config.numClients <= CRYPTO_CLIENTS_MAX);
+    Debug_ASSERT(clients <= CRYPTO_CLIENTS_MAX);
     // Make sure we have as many COLUMNS in the first row as we have clients
-    Debug_ASSERT(config.numClients == sizeof(config.clients[0].allowedIds) /
+    Debug_ASSERT(clients == sizeof(cryptoServer_config.clients[0].allowedIds) /
                  sizeof(int));
     // Make sure we have as many ROWS in the matrix as we have clients
-    Debug_ASSERT(config.numClients == sizeof(config.clients) /
-                 sizeof(config.clients[0]));
+    Debug_ASSERT(clients == sizeof(cryptoServer_config.clients) /
+                 sizeof(cryptoServer_config.clients[0]));
 
     if ((err = initFileSystem(&serverState.hFs)) != OS_SUCCESS)
     {
         return err;
     }
 
-    for (size_t i = 0; i < config.numClients; i++)
+    for (size_t i = 0; i < clients; i++)
     {
         client = &serverState.clients[i];
         client->id = i;
@@ -321,7 +326,7 @@ cryptoServer_rpc_loadKey(
 
     // Check if we have access to the key of that owner; a zero indicates NO ACCES
     // anything else allows it.
-    if (config.clients[owner->id].allowedIds[client->id] == 0)
+    if (cryptoServer_config.clients[owner->id].allowedIds[client->id] == 0)
     {
         Debug_LOG_WARNING("Client with ID=%u failed to access the keystore of ID=%u",
                           client->id, owner->id);
@@ -387,7 +392,7 @@ cryptoServer_rpc_storeKey(
 
     // Check if we are about to exceed the storage limit for this keystore
     if (client->keys.bytesWritten + sizeof(data) >
-        config.clients[client->id].storageLimit)
+        cryptoServer_config.clients[client->id].storageLimit)
     {
         return OS_ERROR_INSUFFICIENT_SPACE;
     }
