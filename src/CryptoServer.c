@@ -19,7 +19,7 @@ static const OS_Crypto_Config_t cfgCrypto =
     .mode = OS_Crypto_MODE_SERVER,
     .dataport = OS_DATAPORT_ASSIGN(cryptoLib_dp),
     .library.entropy = OS_CRYPTO_ASSIGN_EntropySource(
-        entropySource_rpc_read,
+        entropySource_rpc,
         entropySource_dp),
 };
 // Config for FileSystem API
@@ -194,7 +194,7 @@ initKeyStore(
     {
         .mode = OS_Crypto_MODE_LIBRARY_ONLY,
         .library.entropy = OS_CRYPTO_ASSIGN_EntropySource(
-            entropySource_rpc_read,
+            entropySource_rpc,
             entropySource_dp),
     };
 
