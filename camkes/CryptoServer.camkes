@@ -25,8 +25,8 @@ struct CryptoServer_Config {
     component _name_ {                                                  \
         control;                                                        \
                                                                         \
-        dataport    Buf                         cryptoLib_dp;           \
-        provides    if_OS_Crypto                CryptoLibServer;        \
+        dataport    Buf                         crypto_port;            \
+        provides    if_OS_Crypto                crypto_rpc;             \
                                                                         \
         provides    if_CryptoServer             cryptoServer_rpc;       \
                                                                         \
@@ -80,12 +80,12 @@ struct CryptoServer_Config {
     connection  seL4RPCCall                                 \
         _name_ ## _ ## _inst_ ## crypto_rpc ## _num_ (      \
             from    _caller_crypto_rpc_,                    \
-            to      _inst_.CryptoLibServer                  \
+            to      _inst_.crypto_rpc                       \
         );                                                  \
     connection seL4SharedData                               \
         _name_ ## _ ## _inst_ ## crypto_dp ## _num_ (       \
             from    _caller_crypto_dp_,                     \
-            to      _inst_.cryptoLib_dp                     \
+            to      _inst_.crypto_port                      \
         );                                                  \
     connection  seL4RPCCall                                 \
         _name_ ## _ ## _inst_ ## _rpc ## _num_ (            \

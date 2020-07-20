@@ -17,7 +17,7 @@
 static const OS_Crypto_Config_t cfgCrypto =
 {
     .mode = OS_Crypto_MODE_SERVER,
-    .dataport = OS_DATAPORT_ASSIGN(cryptoLib_dp),
+    .dataport = OS_DATAPORT_ASSIGN(crypto_port),
     .library.entropy = OS_CRYPTO_ASSIGN_EntropySource(
         entropySource_rpc,
         entropySource_dp),
@@ -50,7 +50,7 @@ static const OS_FileSystem_Config_t cfgFs =
  */
 seL4_Word cryptoServer_rpc_get_sender_id(
     void);
-seL4_Word CryptoLibServer_get_sender_id(
+seL4_Word crypto_rpc_get_sender_id(
     void);
 
 typedef struct
@@ -87,17 +87,17 @@ static const size_t clients = sizeof(cryptoServer_config) /
 /*
  * Here we map the RPC client to his respective data structures. What is important
  * to understand is that the CryptoServer offers TWO interfaces:
- * 1. The CryptoServer interface, as explicitly defined in the relevant CAMKES
+ * 1. The cryptoServer_rpc interface, as explicitly defined in the relevant CAMKES
  *    file and as visible in CrytpoServer.h and this file.
- * 2. The CryptoLibServer interface, due to the fact that this component is
+ * 2. The crypto_rpc interface, due to the fact that this component is
  *    linked with OS_CRYPTO_WITH_RCP_SERVER and thus contains the Crypto API
  *    LIB and RPC Server code.
  * Mapping to the data structure is based on the numeric "sender ID" which each
  * CAMKES call to an interface provides. However, we need to ensure that
  * sender IDs are the same for each RPC client ON BOTH INTERFACES. If it is not
- * so, one component initializes data structures with ID=1 via the CryptoServer
+ * so, one component initializes data structures with ID=1 via the cryptoServer_rpc
  * interface, and then uses data structures with ID=2 (or whatever) via the
- * CryptoLibServer interface! This mismatch leads to problems.
+ * crypto_rpc interface! This mismatch leads to problems.
  *
  * The way to make sure both IDs are the same, is to explicitly assign the IDs
  * in a configuration:
@@ -109,10 +109,10 @@ static const size_t clients = sizeof(cryptoServer_config) /
  *          ...
  *      }
  *      configuration{
- *          testApp_1.CryptoServer_attributes      = 0;
- *          testApp_1.CryptoLibServer_attributes   = 0;
- *          testApp_2.CryptoServer_attributes      = 1;
- *          testApp_2.CryptoLibServer_attributes   = 1;
+ *          testApp_1.cryptoServer_rpc_attributes   = 0;
+ *          testApp_1.crypto_rpc_attributes         = 0;
+ *          testApp_2.cryptoServer_rpc_attributes   = 1;
+ *          testApp_2.crypto_rpc_attributes         = 1;
  *      }
  *  }
  */
@@ -142,9 +142,9 @@ CryptoServer_getClient()
 }
 
 static CryptoServer_Client*
-CryptoLibServer_getClient()
+crypto_rpc_getClient()
 {
-    return getClient(CryptoLibServer_get_sender_id());
+    return getClient(crypto_rpc_get_sender_id());
 }
 
 static OS_Error_t
@@ -222,7 +222,7 @@ err0:
     return err;
 }
 
-// Public Functions used only by CryptoLibServer ------------------------------
+// Public Functions used only by crypto_rpc ------------------------------
 
 /*
  * This function is called from the RPC server of the Crypto API to find the
@@ -230,14 +230,14 @@ err0:
  * tells it to use. This is done to prevent API clients from accessing contexts
  * that don't belong to them.
  *
- * Note that this uses CryptoLibServer_getClient, which WAITs until the
+ * Note that this uses crypto_rpc_getClient, which WAITs until the
  * serverState struct has been initialized!!
  */
 OS_Crypto_Handle_t
-CryptoLibServer_getCrypto(
+crypto_rpc_getCrypto(
     void)
 {
-    CryptoServer_Client* client = CryptoLibServer_getClient();
+    CryptoServer_Client* client = crypto_rpc_getClient();
     return (NULL == client) ? NULL : client->hCrypto;
 }
 
@@ -287,8 +287,8 @@ int run()
      * We have to post twice, because we may have the two RPC threads for the
      * two interfaces waiting in parallel for the init to complete. The two
      * interfaces are:
-     * 1. CryptoServer      (implemented here)
-     * 2. CryptoLibServer   (provided via the RPC server module of the Crypto API)
+     * 1. cryptoServer_rpc  (implemented here)
+     * 2. crypto_rpc     (provided via the RPC server module of the Crypto API)
      */
     Debug_ASSERT_PRINTFLN(sem_init_post() == 0, "Failed to post semaphore");
     Debug_ASSERT_PRINTFLN(sem_init_post() == 0, "Failed to post semaphore");
