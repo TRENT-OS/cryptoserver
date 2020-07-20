@@ -44,6 +44,7 @@
  *  the client to load keys owned by \p ownerId
  * @retval OS_ERROR_GENERIC is a generic error occured in the KeyStore
  */
+__attribute__((unused))
 static OS_Error_t
 CryptoServer_loadKey(
     OS_CryptoKey_Handle_t* hKey,
@@ -99,6 +100,7 @@ CryptoServer_loadKey(
  *  storageLimit defined for it in the configuration
  * @retval OS_ERROR_GENERIC is a generic error occured in the KeyStore
  */
+__attribute__((unused))
 static OS_Error_t
 CryptoServer_storeKey(
     OS_CryptoKey_Handle_t hKey,
