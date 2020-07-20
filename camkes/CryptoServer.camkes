@@ -23,8 +23,6 @@ struct CryptoServer_Config {
 #define DECLARE_COMPONENT_CryptoServer(_name_)                          \
                                                                         \
     component _name_ {                                                  \
-        control;                                                        \
-                                                                        \
         dataport    Buf                         crypto_port;            \
         provides    if_OS_Crypto                crypto_rpc;             \
                                                                         \
@@ -37,7 +35,6 @@ struct CryptoServer_Config {
         uses        if_OS_Storage               storage_rpc;            \
                                                                         \
         attribute   CryptoServer_Config         cryptoServer_config;    \
-        has         semaphore                   sem_init;               \
     }
 
 
@@ -146,6 +143,3 @@ struct CryptoServer_Config {
 #define ASSIGN_CLIENT_BADGE_CryptoServer(_client_, _server_rpc_, _crypto_rpc_, _val_) \
     _client_._server_rpc_ ## _attributes = _val_;   \
     _client_._crypto_rpc_ ## _attributes = _val_;
-
-#define INIT_SEMAPHORES_CryptoServer(_inst_) \
-    _inst_.sem_init = 0;

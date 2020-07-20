@@ -123,14 +123,9 @@ getClient(
 {
     CryptoServer_Client* client;
 
-    // Before we acces the server state, make sure it is initialized.
-    Debug_ASSERT_PRINTFLN(sem_init_wait() == 0, "Failed to wait for semaphore");
-
     client = (id >= clients) ? NULL :
              (serverState.clients[id].id != id) ? NULL :
              &serverState.clients[id];
-
-    Debug_ASSERT_PRINTFLN(sem_init_post() == 0, "Failed to post semaphore");
 
     return client;
 }
@@ -241,11 +236,8 @@ crypto_rpc_getCrypto(
     return (NULL == client) ? NULL : client->hCrypto;
 }
 
-/*
- * Init filesystem, keystore and crypto states for every client before allowing the
- * RPC components to access them.
- */
-int run()
+void
+post_init()
 {
     OS_Error_t err;
     CryptoServer_Client* client;
@@ -261,7 +253,8 @@ int run()
 
     if ((err = initFileSystem(&serverState.hFs)) != OS_SUCCESS)
     {
-        return err;
+        Debug_LOG_ERROR("initFileSystem() failed with %d", err);
+        return;
     }
 
     for (size_t i = 0; i < clients; i++)
@@ -273,27 +266,17 @@ int run()
         // accessed via its RPC interface
         if ((err = OS_Crypto_init(&client->hCrypto, &cfgCrypto)) != OS_SUCCESS)
         {
-            return err;
+            Debug_LOG_ERROR("OS_Crypto_init() failed with %d", err);
+            return;
         }
 
         // Set up keystore
         if ((err = initKeyStore(serverState.hFs, i, &client->keys)) != OS_SUCCESS)
         {
-            return err;
+            Debug_LOG_ERROR("initKeyStore() failed with %d", err);
+            return;
         }
     }
-
-    /*
-     * We have to post twice, because we may have the two RPC threads for the
-     * two interfaces waiting in parallel for the init to complete. The two
-     * interfaces are:
-     * 1. cryptoServer_rpc  (implemented here)
-     * 2. crypto_rpc     (provided via the RPC server module of the Crypto API)
-     */
-    Debug_ASSERT_PRINTFLN(sem_init_post() == 0, "Failed to post semaphore");
-    Debug_ASSERT_PRINTFLN(sem_init_post() == 0, "Failed to post semaphore");
-
-    return OS_SUCCESS;
 }
 
 // Public Functions ------------------------------------------------------------
