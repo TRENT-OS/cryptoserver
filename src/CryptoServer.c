@@ -247,7 +247,7 @@ post_init()
     // Make sure we have as many COLUMNS in the first row as we have clients
     Debug_ASSERT(clients == sizeof(cryptoServer_config.clients[0].allowedIds) /
                  sizeof(int));
-    // Make sure we have as many ROWS in the matrix as we have clients
+    // Make sure we have as many ROWS as we have clients
     Debug_ASSERT(clients == sizeof(cryptoServer_config.clients) /
                  sizeof(cryptoServer_config.clients[0]));
 
@@ -290,7 +290,8 @@ cryptoServer_rpc_loadKey(
     OS_Error_t err;
     CryptoServer_Client* client, *owner;
     OS_CryptoKey_Data_t data;
-    size_t dataLen = sizeof(data);
+    size_t dataLen = sizeof(data), i;
+    bool isAllowed;
     OS_CryptoKey_Handle_t hMyKey;
 
     if ((owner = getClient(ownerId)) == NULL)
@@ -307,9 +308,15 @@ cryptoServer_rpc_loadKey(
         return OS_ERROR_NOT_FOUND;
     }
 
+    for (i = 0, isAllowed = false; i < clients && !isAllowed; i++)
+    {
+        isAllowed = (cryptoServer_config.clients[owner->id].allowedIds[i] ==
+                     client->id);
+    }
+
     // Check if we have access to the key of that owner; a zero indicates NO ACCES
     // anything else allows it.
-    if (cryptoServer_config.clients[owner->id].allowedIds[client->id] == 0)
+    if (!isAllowed)
     {
         Debug_LOG_WARNING("Client with ID=%u failed to access the keystore of ID=%u",
                           client->id, owner->id);
