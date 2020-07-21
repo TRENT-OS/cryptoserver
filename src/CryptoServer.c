@@ -19,8 +19,8 @@ static const OS_Crypto_Config_t cfgCrypto =
     .mode = OS_Crypto_MODE_SERVER,
     .dataport = OS_DATAPORT_ASSIGN(crypto_port),
     .library.entropy = OS_CRYPTO_ASSIGN_EntropySource(
-        entropySource_rpc,
-        entropySource_dp),
+        entropy_rpc,
+        entropy_port),
 };
 // Config for FileSystem API
 static const OS_FileSystem_Config_t cfgFs =
@@ -189,8 +189,8 @@ initKeyStore(
     {
         .mode = OS_Crypto_MODE_LIBRARY_ONLY,
         .library.entropy = OS_CRYPTO_ASSIGN_EntropySource(
-            entropySource_rpc,
-            entropySource_dp),
+            entropy_rpc,
+            entropy_port),
     };
 
     // We need an instance of the Crypto API for the keystore for hashing etc..
