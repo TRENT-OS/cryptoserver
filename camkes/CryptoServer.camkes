@@ -3,7 +3,7 @@
  */
 
 import <if_OS_Crypto.camkes>;
-import <if_OS_EntropySource.camkes>;
+import <if_OS_Entropy.camkes>;
 import <if_OS_Storage.camkes>;
 
 import <CryptoServer/camkes/if_CryptoServer.camkes>;
@@ -29,7 +29,7 @@ struct CryptoServer_Config {
         provides    if_CryptoServer             cryptoServer_rpc;       \
                                                                         \
         dataport    Buf                         entropySource_dp;       \
-        uses        if_OS_EntropySource         entropySource_rpc;      \
+        uses        if_OS_Entropy               entropySource_rpc;      \
                                                                         \
         dataport    Buf                         storage_dp;             \
         uses        if_OS_Storage               storage_rpc;            \
