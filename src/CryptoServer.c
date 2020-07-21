@@ -18,7 +18,7 @@ static const OS_Crypto_Config_t cfgCrypto =
 {
     .mode = OS_Crypto_MODE_SERVER,
     .dataport = OS_DATAPORT_ASSIGN(crypto_port),
-    .library.entropy = OS_CRYPTO_ASSIGN_EntropySource(
+    .library.entropy = OS_CRYPTO_ASSIGN_Entropy(
         entropy_rpc,
         entropy_port),
 };
@@ -188,7 +188,7 @@ initKeyStore(
     OS_Crypto_Config_t cfg =
     {
         .mode = OS_Crypto_MODE_LIBRARY_ONLY,
-        .library.entropy = OS_CRYPTO_ASSIGN_EntropySource(
+        .library.entropy = OS_CRYPTO_ASSIGN_Entropy(
             entropy_rpc,
             entropy_port),
     };
