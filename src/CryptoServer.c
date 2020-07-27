@@ -13,15 +13,6 @@
 
 #include <camkes.h>
 
-// Config for Crypto API
-static const OS_Crypto_Config_t cfgCrypto =
-{
-    .mode = OS_Crypto_MODE_SERVER,
-    .dataport = OS_DATAPORT_ASSIGN(crypto_port),
-    .library.entropy = OS_CRYPTO_ASSIGN_Entropy(
-        entropy_rpc,
-        entropy_port),
-};
 // Config for FileSystem API
 static const OS_FileSystem_Config_t cfgFs =
 {
@@ -36,6 +27,18 @@ static const OS_FileSystem_Config_t cfgFs =
 // also increase the amount of dataports and the number of clients supported by
 // the CAmkES macros..
 #define CRYPTO_CLIENTS_MAX 8
+
+static OS_Dataport_t ports[CRYPTO_CLIENTS_MAX] =
+{
+    OS_DATAPORT_ASSIGN(crypto1_port),
+    OS_DATAPORT_ASSIGN(crypto2_port),
+    OS_DATAPORT_ASSIGN(crypto3_port),
+    OS_DATAPORT_ASSIGN(crypto4_port),
+    OS_DATAPORT_ASSIGN(crypto5_port),
+    OS_DATAPORT_ASSIGN(crypto6_port),
+    OS_DATAPORT_ASSIGN(crypto7_port),
+    OS_DATAPORT_ASSIGN(crypto8_port),
+};
 
 // Maximum length of keynames
 #define KEYSTORE_NAME_MAX 8
@@ -241,6 +244,13 @@ crypto_rpc_getCrypto(
 void
 post_init()
 {
+    static OS_Crypto_Config_t cfgCrypto =
+    {
+        .mode = OS_Crypto_MODE_SERVER,
+        .library.entropy = OS_CRYPTO_ASSIGN_Entropy(
+            entropy_rpc,
+            entropy_port),
+    };
     OS_Error_t err;
     CryptoServer_Client* client;
 
@@ -259,13 +269,20 @@ post_init()
         return;
     }
 
-    for (size_t i = 0; i < clients; i++)
+    for (uint8_t i = 0; i < clients; i++)
     {
         client = &serverState.clients[i];
         client->id = i;
 
         // Set up an instance of the Crypto API for each client which is then
-        // accessed via its RPC interface
+        // accessed via its RPC interface; every client has its own dataport.
+        cfgCrypto.dataport = ports[clients - i - 1];
+        if (OS_Dataport_isUnset(cfgCrypto.dataport))
+        {
+            Debug_LOG_ERROR("Dataport %i is unset, it should be connected "
+                            "to the respective client", i);
+            return;
+        }
         if ((err = OS_Crypto_init(&client->hCrypto, &cfgCrypto)) != OS_SUCCESS)
         {
             Debug_LOG_ERROR("OS_Crypto_init() failed with %d", err);

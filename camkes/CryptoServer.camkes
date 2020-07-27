@@ -20,21 +20,28 @@ struct CryptoServer_Config {
 //------------------------------------------------------------------------------
 // Component
 
-#define DECLARE_COMPONENT_CryptoServer(_name_)                          \
-                                                                        \
-    component _name_ {                                                  \
-        dataport    Buf                         crypto_port;            \
-        provides    if_OS_Crypto                crypto_rpc;             \
-                                                                        \
-        provides    if_CryptoServer             cryptoServer_rpc;       \
-                                                                        \
-        dataport    Buf                         entropy_port;           \
-        uses        if_OS_Entropy               entropy_rpc;            \
-                                                                        \
-        dataport    Buf                         storage_dp;             \
-        uses        if_OS_Storage               storage_rpc;            \
-                                                                        \
-        attribute   CryptoServer_Config         cryptoServer_config;    \
+#define DECLARE_COMPONENT_CryptoServer(_name_)                              \
+                                                                            \
+    component _name_ {                                                      \
+        maybe dataport  Buf                         crypto1_port;           \
+        maybe dataport  Buf                         crypto2_port;           \
+        maybe dataport  Buf                         crypto3_port;           \
+        maybe dataport  Buf                         crypto4_port;           \
+        maybe dataport  Buf                         crypto5_port;           \
+        maybe dataport  Buf                         crypto6_port;           \
+        maybe dataport  Buf                         crypto7_port;           \
+        maybe dataport  Buf                         crypto8_port;           \
+        provides        if_OS_Crypto                crypto_rpc;             \
+                                                                            \
+        provides        if_CryptoServer             cryptoServer_rpc;       \
+                                                                            \
+        dataport        Buf                         entropy_port;           \
+        uses            if_OS_Entropy               entropy_rpc;            \
+                                                                            \
+        dataport        Buf                         storage_dp;             \
+        uses            if_OS_Storage               storage_rpc;            \
+                                                                            \
+        attribute       CryptoServer_Config         cryptoServer_config;    \
     }
 
 
@@ -85,7 +92,7 @@ struct CryptoServer_Config {
     connection seL4SharedData                               \
         _name_ ## _ ## _inst_ ## crypto_dp ## _num_ (       \
             from    _caller_crypto_dp_,                     \
-            to      _inst_.crypto_port                      \
+            to      _inst_.crypto ## _num_ ## _port         \
         );                                                  \
     connection  seL4RPCCall                                 \
         _name_ ## _ ## _inst_ ## _rpc ## _num_ (            \
