@@ -32,8 +32,10 @@ static const OS_FileSystem_Config_t cfgFs =
         storage_dp),
 };
 
-// Allow at most this amount of clients
-#define CRYPTO_CLIENTS_MAX 16
+// Allow at most this amount of clients; this can be adjusted but then we have to
+// also increase the amount of dataports and the number of clients supported by
+// the CAmkES macros..
+#define CRYPTO_CLIENTS_MAX 8
 
 // Maximum length of keynames
 #define KEYSTORE_NAME_MAX 8

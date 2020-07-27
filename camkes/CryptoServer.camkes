@@ -55,14 +55,17 @@ struct CryptoServer_Config {
     CryptoServer_FE_5(WHAT, N,I, __VA_ARGS__)
 #define CryptoServer_FE_7(WHAT, N,I,R,D,S, ...) WHAT(N,I,R,D,S,7) \
     CryptoServer_FE_6(WHAT, N,I, __VA_ARGS__)
-#define CryptoServer_GET_MACRO(_0,\
-    _10,_11,_12,_20,_21,_22,_30,_31,_32,    \
-    _40,_41,_42,_50,_51,_52,_60,_61,_62,_70,_71,_72,NAME,...)  \
-                        CryptoServer_ ## NAME
+#define CryptoServer_FE_8(WHAT, N,I,R,D,S, ...) WHAT(N,I,R,D,S,8) \
+    CryptoServer_FE_7(WHAT, N,I, __VA_ARGS__)
+#define CryptoServer_GET_MACRO(_0,                      \
+    _10,_11,_12,_20,_21,_22,_30,_31,_32,_40,_41,_42,    \
+    _50,_51,_52,_60,_61,_62,_70,_71,_72,_80,_81,_82,    \
+    NAME,...)                                           \
+        CryptoServer_ ## NAME
 #define CryptoServer_FOR_EACH(action, _name_, _inst_, ...)          \
   CryptoServer_GET_MACRO(_0,__VA_ARGS__,                            \
-    FE_7,FE_7,FE_7,FE_6,FE_6,FE_6,FE_5,FE_5,FE_5,FE_4,FE_4,FE_4,    \
-    FE_3,FE_3,FE_3,FE_2,FE_2,FE_2,FE_1,FE_1,FE_1)                   \
+    FE_8,FE_8,FE_8,FE_7,FE_7,FE_7,FE_6,FE_6,FE_6,FE_5,FE_5,FE_5,    \
+    FE_4,FE_4,FE_4,FE_3,FE_3,FE_3,FE_2,FE_2,FE_2,FE_1,FE_1,FE_1)    \
         (action,_name_,_inst_,__VA_ARGS__)
 
 // Set a single connection
