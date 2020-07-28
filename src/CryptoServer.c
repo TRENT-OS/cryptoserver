@@ -51,7 +51,7 @@ static OS_Dataport_t ports[CRYPTO_CLIENTS_MAX] =
  *   <interface_user>.<interface>_attributes = ID
  *
  * IDs must be same for each interface user on both interfaces, see also the
- * comment below.
+ * comment below. IDs start at 1.
  */
 seL4_Word cryptoServer_rpc_get_sender_id(
     void);
@@ -128,9 +128,9 @@ getClient(
 {
     CryptoServer_Client* client;
 
-    client = (id >= clients) ? NULL :
-             (serverState.clients[id].id != id) ? NULL :
-             &serverState.clients[id];
+    client = (id > clients) || (id <= 0) ? NULL :
+             (serverState.clients[id - 1].id != id) ? NULL :
+             &serverState.clients[id - 1];
 
     return client;
 }
@@ -272,7 +272,7 @@ post_init()
     for (uint8_t i = 0; i < clients; i++)
     {
         client = &serverState.clients[i];
-        client->id = i;
+        client->id = i + 1;
 
         // Set up an instance of the Crypto API for each client which is then
         // accessed via its RPC interface; every client has its own dataport.
@@ -280,7 +280,7 @@ post_init()
         if (OS_Dataport_isUnset(cfgCrypto.dataport))
         {
             Debug_LOG_ERROR("Dataport %i is unset, it should be connected "
-                            "to the respective client", i);
+                            "to the respective client", i + 1);
             return;
         }
         if ((err = OS_Crypto_init(&client->hCrypto, &cfgCrypto)) != OS_SUCCESS)
@@ -329,7 +329,7 @@ cryptoServer_rpc_loadKey(
 
     for (i = 0, isAllowed = false; i < clients && !isAllowed; i++)
     {
-        isAllowed = (cryptoServer_config.clients[owner->id].allowedIds[i] ==
+        isAllowed = (cryptoServer_config.clients[owner->id - 1].allowedIds[i] ==
                      client->id);
     }
 
@@ -401,7 +401,7 @@ cryptoServer_rpc_storeKey(
 
     // Check if we are about to exceed the storage limit for this keystore
     if (client->keys.bytesWritten + sizeof(data) >
-        cryptoServer_config.clients[client->id].storageLimit)
+        cryptoServer_config.clients[client->id - 1].storageLimit)
     {
         return OS_ERROR_INSUFFICIENT_SPACE;
     }
