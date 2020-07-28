@@ -20,7 +20,7 @@ static const OS_FileSystem_Config_t cfgFs =
     .size = OS_FileSystem_STORAGE_MAX,
     .storage = OS_FILESYSTEM_ASSIGN_Storage(
         storage_rpc,
-        storage_dp),
+        storage_port),
 };
 
 // Allow at most this amount of clients; this can be adjusted but then we have to

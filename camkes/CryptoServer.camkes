@@ -38,7 +38,7 @@ struct CryptoServer_Config {
         dataport        Buf                         entropy_port;           \
         uses            if_OS_Entropy               entropy_rpc;            \
                                                                             \
-        dataport        Buf                         storage_dp;             \
+        dataport        Buf                         storage_port;           \
         uses            if_OS_Storage               storage_rpc;            \
                                                                             \
         attribute       CryptoServer_Config         cryptoServer_config;    \
@@ -80,7 +80,7 @@ struct CryptoServer_Config {
     _name_,                                                 \
     _inst_,                                                 \
     _caller_crypto_rpc_,                                    \
-    _caller_crypto_dp_,                                     \
+    _caller_crypto_port_,                                   \
     _caller_server_rpc_,                                    \
     _num_)                                                  \
                                                             \
@@ -90,8 +90,8 @@ struct CryptoServer_Config {
             to      _inst_.crypto_rpc                       \
         );                                                  \
     connection seL4SharedData                               \
-        _name_ ## _ ## _inst_ ## crypto_dp ## _num_ (       \
-            from    _caller_crypto_dp_,                     \
+        _name_ ## _ ## _inst_ ## crypto_port ## _num_ (     \
+            from    _caller_crypto_port_,                   \
             to      _inst_.crypto ## _num_ ## _port         \
         );                                                  \
     connection  seL4RPCCall                                 \
@@ -117,9 +117,9 @@ struct CryptoServer_Config {
     _name_,                                                                     \
     _inst_,                                                                     \
     _entropy_rpc_,                                                              \
-    _entropy_dp_,                                                               \
+    _entropy_port_,                                                             \
     _storage_rpc_,                                                              \
-    _storage_dp_,                                                               \
+    _storage_port_,                                                             \
     ...)                                                                        \
                                                                                 \
     component   _name_  _inst_;                                                 \
@@ -130,9 +130,9 @@ struct CryptoServer_Config {
             to      _entropy_rpc_                                               \
         );                                                                      \
     connection seL4SharedData                                                   \
-        _name_ ## _ ## _inst_ ## _entropy_dp (                                  \
+        _name_ ## _ ## _inst_ ## _entropy_port (                                \
             from    _inst_.entropy_port,                                        \
-            to      _entropy_dp_                                                \
+            to      _entropy_port_                                              \
         );                                                                      \
     connection  seL4RPCCall                                                     \
         _name_ ## _ ## _inst_ ## _storage_rpc   (                               \
@@ -140,9 +140,9 @@ struct CryptoServer_Config {
             to      _storage_rpc_                                               \
         );                                                                      \
     connection seL4SharedData                                                   \
-        _name_ ## _ ## _inst_ ## _storage_dp (                                  \
-            from    _inst_.storage_dp,                                          \
-            to      _storage_dp_                                                \
+        _name_ ## _ ## _inst_ ## _storage_port (                                \
+            from    _inst_.storage_port,                                        \
+            to      _storage_port_                                              \
         );                                                                      \
     CryptoServer_FOR_EACH(CryptoServer_CONNECTION, _name_, _inst_, __VA_ARGS__)
 
