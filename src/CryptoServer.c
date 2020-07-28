@@ -98,7 +98,7 @@ static const size_t clients = sizeof(cryptoServer_config) /
  *    linked with OS_CRYPTO_WITH_RCP_SERVER and thus contains the Crypto API
  *    LIB and RPC Server code.
  * Mapping to the data structure is based on the numeric "sender ID" which each
- * CAMKES call to an interface provides. However, we need to ensure that
+ * CAmkES call to an interface provides. However, we need to ensure that
  * sender IDs are the same for each RPC client ON BOTH INTERFACES. If it is not
  * so, one component initializes data structures with ID=1 via the cryptoServer_rpc
  * interface, and then uses data structures with ID=2 (or whatever) via the
@@ -327,14 +327,13 @@ cryptoServer_rpc_loadKey(
         return OS_ERROR_NOT_FOUND;
     }
 
+    // Go through list of owner's allowedIDs to check if the ID that is requesting
+    // access is part of his list
     for (i = 0, isAllowed = false; i < clients && !isAllowed; i++)
     {
         isAllowed = (cryptoServer_config.clients[owner->id - 1].allowedIds[i] ==
                      client->id);
     }
-
-    // Check if we have access to the key of that owner; a zero indicates NO ACCES
-    // anything else allows it.
     if (!isAllowed)
     {
         Debug_LOG_WARNING("Client with ID=%u failed to access the keystore of ID=%u",
