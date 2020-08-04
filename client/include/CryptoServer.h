@@ -44,30 +44,12 @@
  *  the client to load keys owned by \p ownerId
  * @retval OS_ERROR_GENERIC is a generic error occured in the KeyStore
  */
-__attribute__((unused))
-static OS_Error_t
+OS_Error_t
 CryptoServer_loadKey(
     OS_CryptoKey_Handle_t* hKey,
     OS_Crypto_Handle_t     hCrypto,
     seL4_Word              ownerId,
-    const char*            name)
-{
-    OS_Error_t err;
-    CryptoLib_Object_ptr ptr;
-
-    if (NULL == hKey || NULL == hCrypto)
-    {
-        return OS_ERROR_INVALID_PARAMETER;
-    }
-
-    // Call function within CryptoServer component via CAmkES-generated interface
-    if ((err = cryptoServer_rpc_loadKey(&ptr, ownerId, name)) == OS_SUCCESS)
-    {
-        err = OS_Crypto_migrateLibObject(hKey, hCrypto, ptr, false);
-    }
-
-    return err;
-}
+    const char*            name);
 
 /**
  * @brief Store a "non-exportable" key in the CryptoServer's KeyStore
@@ -100,14 +82,9 @@ CryptoServer_loadKey(
  *  storageLimit defined for it in the configuration
  * @retval OS_ERROR_GENERIC is a generic error occured in the KeyStore
  */
-__attribute__((unused))
-static OS_Error_t
+OS_Error_t
 CryptoServer_storeKey(
     OS_CryptoKey_Handle_t hKey,
-    const char*           name)
-{
-    // Call function within CryptoServer component via CAmkES-generated interface
-    return cryptoServer_rpc_storeKey(OS_Crypto_getLibObject(hKey), name);
-}
+    const char*           name);
 
 /** @} */

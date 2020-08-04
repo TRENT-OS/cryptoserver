@@ -36,7 +36,7 @@ function(DeclareCAmkESComponent_CryptoServer
     #---------------------------------------------------------------------------
     DeclareCAmkESComponent(${name}
         SOURCES
-            ${OS_COMPONENT_CryptoServer_DIR}/src/CryptoServer.c
+            ${OS_COMPONENT_CryptoServer_DIR}/server/src/cryptoServer_rpc.c
         C_FLAGS
             -Wall
             -Werror
@@ -57,9 +57,14 @@ function(DeclareCAmkESComponent_CryptoServer
 
     add_library(${PROJECT_NAME} INTERFACE)
 
+    target_sources(${PROJECT_NAME}
+        INTERFACE
+            ${OS_COMPONENT_CryptoServer_DIR}/client/src/CryptoServer.c
+    )
+
     target_include_directories(${PROJECT_NAME}
         INTERFACE
-            ${OS_COMPONENT_CryptoServer_DIR}/inc
+            ${OS_COMPONENT_CryptoServer_DIR}/client/include
     )
 
     target_link_libraries(${PROJECT_NAME}
