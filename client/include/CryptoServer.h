@@ -52,10 +52,10 @@ CryptoServer_loadKey(
     const char*            name);
 
 /**
- * @brief Store a "non-exportable" key in the CryptoServer's KeyStore
+ * @brief Store a key in the CryptoServer's KeyStore
  *
  * The Crypto API delegates all operations (including generation, import, etc.)
- * with keys with the exportable flag set to FALSE to the CryptoServer. These keys
+ * with keys with the keepLocal flag set to FALSE to the CryptoServer. These keys
  * shall never leave the CryptoServer and are thus safely isolated.
  *
  * Once a key exists in the CryptoServer, it can be used via the Crypto API
