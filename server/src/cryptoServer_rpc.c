@@ -317,7 +317,7 @@ cryptoServer_rpc_loadKey(
     {
         return OS_ERROR_INVALID_PARAMETER;
     }
-    else if (strlen(name) == 0 || strlen(name) > KEYSTORE_NAME_MAX)
+    if (strlen(name) == 0 || strlen(name) > KEYSTORE_NAME_MAX)
     {
         return OS_ERROR_INVALID_PARAMETER;
     }
@@ -377,7 +377,7 @@ cryptoServer_rpc_storeKey(
     {
         return OS_ERROR_NOT_FOUND;
     }
-    else if (strlen(name) == 0 || strlen(name) > KEYSTORE_NAME_MAX)
+    if (strlen(name) == 0 || strlen(name) > KEYSTORE_NAME_MAX)
     {
         return OS_ERROR_INVALID_PARAMETER;
     }
