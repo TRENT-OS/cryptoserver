@@ -24,7 +24,7 @@ CryptoServer_loadKey(
                    ownerId,
                    name)) == OS_SUCCESS)
     {
-        err = OS_Crypto_migrateLibObject(
+        err = OS_Crypto_createProxy(
                   pLocalKeyHandle,
                   hCrypto,
                   remoteKeyHandle,
@@ -43,7 +43,7 @@ CryptoServer_storeKey(
 
     // Get the address of the underlying key object from the client's proxy object.
     // This should be the address where the server's proxy object can be found.
-    remoteKeyHandle = (OS_CryptoKey_Handle_t)OS_Crypto_getLibObject(localKeyHandle);
+    remoteKeyHandle = (OS_CryptoKey_Handle_t)OS_Crypto_getProxyPtr(localKeyHandle);
     if (NULL == remoteKeyHandle)
     {
         return OS_ERROR_INVALID_HANDLE;
