@@ -265,16 +265,15 @@ post_init()
 
 OS_Error_t
 cryptoServer_rpc_loadKey(
-    CryptoLib_Object_ptr* ptr,
-    seL4_Word             ownerId,
-    const char*           name)
+    OS_CryptoKey_Handle_t* pKeyHandle,
+    seL4_Word              ownerId,
+    const char*            name)
 {
     OS_Error_t err;
     CryptoServer_Client_t* client, *owner;
     OS_CryptoKey_Data_t data;
     size_t dataLen = sizeof(data), i;
     bool isAllowed;
-    OS_CryptoKey_Handle_t hMyKey;
 
     GET_CLIENT(owner,  ownerId);
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
@@ -307,27 +306,23 @@ cryptoServer_rpc_loadKey(
         return err;
     }
 
-    // Import key data into the remote Crypto API, so it can be used there.
-    if ((err = OS_CryptoKey_import(&hMyKey, client->hCrypto,
-                                   &data)) != OS_SUCCESS)
-    {
-        return err;
-    }
-
-    // Send back only the pointer to the LIB Key object
-    *ptr = OS_Crypto_getLibObject(hMyKey);
-
-    return OS_SUCCESS;
+    return HandleMgr_addOnSuccess(
+               client->handleMgr,
+               HND_KEY,
+               OS_CryptoKey_import(
+                   pKeyHandle,
+                   client->hCrypto,
+                   &data),
+               (HandleMgr_Handle_t*) pKeyHandle);
 }
 
 OS_Error_t
 cryptoServer_rpc_storeKey(
-    CryptoLib_Object_ptr ptr,
-    const char*          name)
+    OS_CryptoKey_Handle_t keyHandle,
+    const char*           name)
 {
     OS_Error_t err;
     OS_CryptoKey_Data_t data;
-    OS_CryptoKey_Handle_t hMyKey;
     CryptoServer_Client_t* client;
 
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
@@ -337,18 +332,9 @@ cryptoServer_rpc_storeKey(
         return OS_ERROR_INVALID_PARAMETER;
     }
 
-    // We get an API Key object from the RPC client, which has the API context of
-    // the CLIENT attached to it. This needs to be changed to the local API context.
-    if ((err = OS_Crypto_migrateLibObject(&hMyKey, client->hCrypto,
-                                          ptr, true)) != OS_SUCCESS)
-    {
-        return err;
-    }
-
-    // Now we can use that key object and export its data; we can always do this
-    // since we go through the API which uses the RPC server's LIB instance (the
-    // same the RPC client refers to from afar)..
-    if ((err = OS_CryptoKey_export(hMyKey, &data)) != OS_SUCCESS)
+    // We already get a key handle that belongs to our own proxy object,
+    // so we can use it straight-forward.
+    if ((err = OS_CryptoKey_export(keyHandle, &data)) != OS_SUCCESS)
     {
         return err;
     }
