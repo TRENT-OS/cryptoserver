@@ -63,24 +63,24 @@ typedef struct
     OS_Keystore_Handle_t hKeystore;
     OS_Crypto_Handle_t hCrypto;
     size_t bytesWritten;
-} CryptoServer_KeyStore;
+} CryptoServer_KeyStore_t;
 
 typedef struct
 {
     unsigned int id;
     OS_Crypto_Handle_t hCrypto;
-    CryptoServer_KeyStore keys;
-} CryptoServer_Client;
+    CryptoServer_KeyStore_t keys;
+} CryptoServer_Client_t;
 
 typedef struct
 {
-    CryptoServer_Client clients[CRYPTO_CLIENTS_MAX];
+    CryptoServer_Client_t clients[CRYPTO_CLIENTS_MAX];
     OS_FileSystem_Handle_t hFs;
-} CryptoServer_State;
+} CryptoServer_State_t;
 
 // Here we keep track of all the respective contexts and the list of clients
 // connected to the server
-static CryptoServer_State serverState;
+static CryptoServer_State_t serverState;
 
 // Clients we have based on the amount of config data
 static const size_t clients = sizeof(cryptoServer_config) /
@@ -122,11 +122,11 @@ static const size_t clients = sizeof(cryptoServer_config) /
  *  }
  */
 
-static CryptoServer_Client*
+static CryptoServer_Client_t*
 getClient(
     seL4_Word id)
 {
-    CryptoServer_Client* client;
+    CryptoServer_Client_t* client;
 
     client = (id > clients) || (id <= 0) ? NULL :
              (serverState.clients[id - 1].id != id) ? NULL :
@@ -135,7 +135,7 @@ getClient(
     return client;
 }
 
-static CryptoServer_Client*
+static CryptoServer_Client_t*
 CryptoServer_getClient()
 {
     return getClient(cryptoServer_rpc_get_sender_id());
@@ -184,9 +184,9 @@ initFileSystem(
 
 static OS_Error_t
 initKeyStore(
-    OS_FileSystem_Handle_t hFs,
-    const uint8_t          index,
-    CryptoServer_KeyStore* ks)
+    OS_FileSystem_Handle_t   hFs,
+    const uint8_t            index,
+    CryptoServer_KeyStore_t* ks)
 {
     OS_Error_t err;
     char ksName[16];
@@ -252,7 +252,7 @@ post_init()
             entropy_port),
     };
     OS_Error_t err;
-    CryptoServer_Client* client;
+    CryptoServer_Client_t* client;
 
     // Make sure we don't exceed our limit
     Debug_ASSERT(clients <= CRYPTO_CLIENTS_MAX);
@@ -307,7 +307,7 @@ cryptoServer_rpc_loadKey(
     const char*           name)
 {
     OS_Error_t err;
-    CryptoServer_Client* client, *owner;
+    CryptoServer_Client_t* client, *owner;
     OS_CryptoKey_Data_t data;
     size_t dataLen = sizeof(data), i;
     bool isAllowed;
@@ -371,7 +371,7 @@ cryptoServer_rpc_storeKey(
     OS_Error_t err;
     OS_CryptoKey_Data_t data;
     OS_CryptoKey_Handle_t hMyKey;
-    CryptoServer_Client* client;
+    CryptoServer_Client_t* client;
 
     if ((client = CryptoServer_getClient()) == NULL)
     {
