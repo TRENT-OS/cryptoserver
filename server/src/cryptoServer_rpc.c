@@ -8,10 +8,25 @@
 #include "OS_Keystore.h"
 
 #include "LibDebug/Debug.h"
+#include "LibHandle/HandleMgr.h"
 
 #include <string.h>
 
 #include <camkes.h>
+
+// Get a client when called via RPC
+#define GET_CLIENT(cli, cid)                                            \
+    if ((cli = getClient(cid)) == NULL)                                 \
+    {                                                                   \
+        Debug_LOG_ERROR("Could not get corresponding client state");    \
+        return OS_ERROR_NOT_FOUND;                                      \
+    }
+// Check a buffer size against a client's dataport size
+#define CHK_SIZE(cli, sz)                                       \
+    if (sz > OS_Dataport_getSize(*cli->dataport)) {             \
+        Debug_LOG_ERROR("Requested size too big for dataport"); \
+        return OS_ERROR_INVALID_PARAMETER;                      \
+    }
 
 // Config for FileSystem API
 static const OS_FileSystem_Config_t cfgFs =
@@ -22,6 +37,25 @@ static const OS_FileSystem_Config_t cfgFs =
         storage_rpc,
         storage_port),
 };
+static const OS_Crypto_Config_t cfgCrypto =
+{
+    .mode = OS_Crypto_MODE_LIBRARY_ONLY,
+    .entropy = IF_OS_ENTROPY_ASSIGN(
+        entropy_rpc,
+        entropy_port),
+};
+
+// IDs for handle manager
+enum HandleIds
+{
+    HND_MAC = 0,
+    HND_DIGEST,
+    HND_KEY,
+    HND_CIPHER,
+    HND_AGREEMENT,
+    HND_SIGNATURE,
+    HND_MAX
+};
 
 // Allow at most this amount of clients; this can be adjusted but then we have to
 // also increase the amount of dataports and the number of clients supported by
@@ -30,32 +64,21 @@ static const OS_FileSystem_Config_t cfgFs =
 
 static OS_Dataport_t ports[CRYPTO_CLIENTS_MAX] =
 {
-    OS_DATAPORT_ASSIGN(crypto1_port),
-    OS_DATAPORT_ASSIGN(crypto2_port),
-    OS_DATAPORT_ASSIGN(crypto3_port),
-    OS_DATAPORT_ASSIGN(crypto4_port),
-    OS_DATAPORT_ASSIGN(crypto5_port),
-    OS_DATAPORT_ASSIGN(crypto6_port),
-    OS_DATAPORT_ASSIGN(crypto7_port),
-    OS_DATAPORT_ASSIGN(crypto8_port),
+    OS_DATAPORT_ASSIGN(cryptoServer_port1),
+    OS_DATAPORT_ASSIGN(cryptoServer_port2),
+    OS_DATAPORT_ASSIGN(cryptoServer_port3),
+    OS_DATAPORT_ASSIGN(cryptoServer_port4),
+    OS_DATAPORT_ASSIGN(cryptoServer_port5),
+    OS_DATAPORT_ASSIGN(cryptoServer_port6),
+    OS_DATAPORT_ASSIGN(cryptoServer_port7),
+    OS_DATAPORT_ASSIGN(cryptoServer_port8),
 };
 
 // Maximum length of keynames
 #define KEYSTORE_NAME_MAX 8
-/*
- * These are auto-generated based on interface names; they give unique ID
- * assigned to the user of the interface.
- *
- * Sender IDs can be assigned via a configuration for each interface/user
- * individually, when following this convention:
- *   <interface_user>.<interface>_attributes = ID
- *
- * IDs must be same for each interface user on both interfaces, see also the
- * comment below. IDs start at 1.
- */
+
+// Identify user of interface
 seL4_Word cryptoServer_rpc_get_sender_id(
-    void);
-seL4_Word crypto_rpc_get_sender_id(
     void);
 
 typedef struct
@@ -69,6 +92,8 @@ typedef struct
 {
     unsigned int id;
     OS_Crypto_Handle_t hCrypto;
+    HandleMgr_t* handleMgr;
+    OS_Dataport_t* dataport;
     CryptoServer_KeyStore_t keys;
 } CryptoServer_Client_t;
 
@@ -86,41 +111,7 @@ static CryptoServer_State_t serverState;
 static const size_t clients = sizeof(cryptoServer_config) /
                               sizeof(struct CryptoServer_ClientConfig);
 
-
 // Private Functions -----------------------------------------------------------
-
-/*
- * Here we map the RPC client to his respective data structures. What is important
- * to understand is that the CryptoServer offers TWO interfaces:
- * 1. The cryptoServer_rpc interface, as explicitly defined in the relevant CAMKES
- *    file and as visible in CrytpoServer.h and this file.
- * 2. The crypto_rpc interface, due to the fact that this component is
- *    linked with OS_CRYPTO_WITH_RCP_SERVER and thus contains the Crypto API
- *    LIB and RPC Server code.
- * Mapping to the data structure is based on the numeric "sender ID" which each
- * CAmkES call to an interface provides. However, we need to ensure that
- * sender IDs are the same for each RPC client ON BOTH INTERFACES. If it is not
- * so, one component initializes data structures with ID=1 via the cryptoServer_rpc
- * interface, and then uses data structures with ID=2 (or whatever) via the
- * crypto_rpc interface! This mismatch leads to problems.
- *
- * The way to make sure both IDs are the same, is to explicitly assign the IDs
- * in a configuration:
- *
- *  assembly {
- *      composition {
- *          component   TestApp_1   testApp_1;
- *          component   TestApp_2   testApp_2;
- *          ...
- *      }
- *      configuration{
- *          testApp_1.cryptoServer_rpc_attributes   = 0;
- *          testApp_1.crypto_rpc_attributes         = 0;
- *          testApp_2.cryptoServer_rpc_attributes   = 1;
- *          testApp_2.crypto_rpc_attributes         = 1;
- *      }
- *  }
- */
 
 static CryptoServer_Client_t*
 getClient(
@@ -133,18 +124,6 @@ getClient(
              &serverState.clients[id - 1];
 
     return client;
-}
-
-static CryptoServer_Client_t*
-CryptoServer_getClient()
-{
-    return getClient(cryptoServer_rpc_get_sender_id());
-}
-
-static CryptoServer_Client*
-crypto_rpc_getClient()
-{
-    return getClient(crypto_rpc_get_sender_id());
 }
 
 static OS_Error_t
@@ -190,16 +169,9 @@ initKeyStore(
 {
     OS_Error_t err;
     char ksName[16];
-    OS_Crypto_Config_t cfg =
-    {
-        .mode = OS_Crypto_MODE_LIBRARY_ONLY,
-        .entropy = IF_OS_ENTROPY_ASSIGN(
-            entropy_rpc,
-            entropy_port),
-    };
 
     // We need an instance of the Crypto API for the keystore for hashing etc..
-    if ((err = OS_Crypto_init(&ks->hCrypto, &cfg)) != OS_SUCCESS)
+    if ((err = OS_Crypto_init(&ks->hCrypto, &cfgCrypto)) != OS_SUCCESS)
     {
         Debug_LOG_ERROR("OS_Crypto_init() failed with %d", err);
         return err;
@@ -222,35 +194,26 @@ err0:
     return err;
 }
 
-// Public Functions used only by crypto_rpc ------------------------------
-
-/*
- * This function is called from the RPC server of the Crypto API to find the
- * correct API context, irrespective of which API context address the RPC client
- * tells it to use. This is done to prevent API clients from accessing contexts
- * that don't belong to them.
- *
- * Note that this uses crypto_rpc_getClient, which WAITs until the
- * serverState struct has been initialized!!
- */
-OS_Crypto_Handle_t
-crypto_rpc_getCrypto(
-    void)
+static OS_Error_t
+initCrypto(
+    OS_Crypto_Handle_t* hCrypto,
+    HandleMgr_t**       handleMgr)
 {
-    CryptoServer_Client* client = crypto_rpc_getClient();
-    return (NULL == client) ? NULL : client->hCrypto;
+    OS_Error_t err;
+
+    if ((err = HandleMgr_init(handleMgr, HND_MAX)) != OS_SUCCESS)
+    {
+        return err;
+    }
+
+    return OS_Crypto_init(hCrypto, &cfgCrypto);
 }
+
+// -----------------------------------------------------------------------------
 
 void
 post_init()
 {
-    static OS_Crypto_Config_t cfgCrypto =
-    {
-        .mode = OS_Crypto_MODE_SERVER,
-        .entropy = IF_OS_ENTROPY_ASSIGN(
-            entropy_rpc,
-            entropy_port),
-    };
     OS_Error_t err;
     CryptoServer_Client_t* client;
 
@@ -276,20 +239,20 @@ post_init()
 
         // Set up an instance of the Crypto API for each client which is then
         // accessed via its RPC interface; every client has its own dataport.
-        cfgCrypto.dataport = ports[clients - i - 1];
-        if (OS_Dataport_isUnset(cfgCrypto.dataport))
+        client->dataport = &ports[clients - i - 1];
+        if (OS_Dataport_isUnset(*client->dataport))
         {
             Debug_LOG_ERROR("Dataport %i is unset, it should be connected "
                             "to the respective client", i + 1);
             return;
         }
-        if ((err = OS_Crypto_init(&client->hCrypto, &cfgCrypto)) != OS_SUCCESS)
+        // Init client's Crypto API instance and list of handles
+        if ((err = initCrypto(&client->hCrypto, &client->handleMgr)) != OS_SUCCESS)
         {
-            Debug_LOG_ERROR("OS_Crypto_init() failed with %d", err);
+            Debug_LOG_ERROR("initCrypto() failed with %d", err);
             return;
         }
-
-        // Set up keystore
+        // Init client's keystore
         if ((err = initKeyStore(serverState.hFs, i, &client->keys)) != OS_SUCCESS)
         {
             Debug_LOG_ERROR("initKeyStore() failed with %d", err);
@@ -298,7 +261,7 @@ post_init()
     }
 }
 
-// Public Functions ------------------------------------------------------------
+// Extra if_CryptoServer interface functions -----------------------------------
 
 OS_Error_t
 cryptoServer_rpc_loadKey(
@@ -313,18 +276,12 @@ cryptoServer_rpc_loadKey(
     bool isAllowed;
     OS_CryptoKey_Handle_t hMyKey;
 
-    if ((owner = getClient(ownerId)) == NULL)
-    {
-        return OS_ERROR_INVALID_PARAMETER;
-    }
+    GET_CLIENT(owner,  ownerId);
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+
     if (strlen(name) == 0 || strlen(name) > KEYSTORE_NAME_MAX)
     {
         return OS_ERROR_INVALID_PARAMETER;
-    }
-
-    if ((client = CryptoServer_getClient()) == NULL)
-    {
-        return OS_ERROR_NOT_FOUND;
     }
 
     // Go through list of owner's allowedIDs to check if the ID that is requesting
@@ -373,10 +330,8 @@ cryptoServer_rpc_storeKey(
     OS_CryptoKey_Handle_t hMyKey;
     CryptoServer_Client_t* client;
 
-    if ((client = CryptoServer_getClient()) == NULL)
-    {
-        return OS_ERROR_NOT_FOUND;
-    }
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+
     if (strlen(name) == 0 || strlen(name) > KEYSTORE_NAME_MAX)
     {
         return OS_ERROR_INVALID_PARAMETER;
@@ -413,4 +368,625 @@ cryptoServer_rpc_storeKey(
     }
 
     return err;
+}
+
+// if_OS_Crypto interface functions --------------------------------------------
+
+OS_Error_t
+cryptoServer_rpc_Rng_getBytes(
+    unsigned int flags,
+    size_t       bufSize)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+    CHK_SIZE(client, bufSize);
+
+    return OS_CryptoRng_getBytes(
+               client->hCrypto,
+               flags,
+               OS_Dataport_getBuf(*client->dataport),
+               bufSize);
+}
+
+OS_Error_t
+cryptoServer_rpc_Rng_reseed(
+    size_t seedSize)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+    CHK_SIZE(client, seedSize);
+
+    return OS_CryptoRng_reseed(
+               client->hCrypto,
+               OS_Dataport_getBuf(*client->dataport),
+               seedSize);
+}
+
+OS_Error_t
+cryptoServer_rpc_Mac_init(
+    OS_CryptoMac_Handle_t* pMacHandle,
+    OS_CryptoKey_Handle_t  keyHandle,
+    unsigned int           algorithm)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+
+    return HandleMgr_addOnSuccess(
+               client->handleMgr,
+               HND_MAC,
+               OS_CryptoMac_init(
+                   pMacHandle,
+                   client->hCrypto,
+                   HandleMgr_validate(
+                       client->handleMgr,
+                       HND_KEY,
+                       keyHandle),
+                   algorithm),
+               (HandleMgr_Handle_t*) pMacHandle);
+}
+
+OS_Error_t
+cryptoServer_rpc_Mac_free(
+    OS_CryptoMac_Handle_t macHandle)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+
+    return HandleMgr_removeOnSuccess(
+               client->handleMgr,
+               HND_MAC,
+               OS_CryptoMac_free(
+                   HandleMgr_validate(
+                       client->handleMgr,
+                       HND_MAC,
+                       macHandle)),
+               macHandle);
+}
+
+OS_Error_t
+cryptoServer_rpc_Mac_process(
+    OS_CryptoMac_Handle_t macHandle,
+    size_t                dataSize)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+    CHK_SIZE(client, dataSize);
+
+    return OS_CryptoMac_process(
+               HandleMgr_validate(
+                   client->handleMgr,
+                   HND_MAC,
+                   macHandle),
+               OS_Dataport_getBuf(*client->dataport),
+               dataSize);
+}
+
+OS_Error_t
+cryptoServer_rpc_Mac_finalize(
+    OS_CryptoMac_Handle_t macHandle,
+    size_t*               macSize)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+    CHK_SIZE(client, *macSize);
+
+    return OS_CryptoMac_finalize(
+               HandleMgr_validate(
+                   client->handleMgr,
+                   HND_MAC,
+                   macHandle),
+               OS_Dataport_getBuf(*client->dataport),
+               macSize);
+}
+
+OS_Error_t
+cryptoServer_rpc_Digest_init(
+    OS_CryptoDigest_Handle_t* pDigestHandle,
+    unsigned int              algorithm)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+
+    return HandleMgr_addOnSuccess(
+               client->handleMgr,
+               HND_DIGEST,
+               OS_CryptoDigest_init(
+                   pDigestHandle,
+                   client->hCrypto,
+                   algorithm),
+               (HandleMgr_Handle_t*) pDigestHandle);
+}
+
+OS_Error_t
+cryptoServer_rpc_Digest_free(
+    OS_CryptoDigest_Handle_t digestHandle)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+
+    return HandleMgr_removeOnSuccess(
+               client->handleMgr,
+               HND_DIGEST,
+               OS_CryptoDigest_free(
+                   HandleMgr_validate(
+                       client->handleMgr,
+                       HND_DIGEST,
+                       digestHandle)),
+               digestHandle);
+}
+
+OS_Error_t
+cryptoServer_rpc_Digest_clone(
+    OS_CryptoDigest_Handle_t* pDigestHandle,
+    OS_CryptoDigest_Handle_t  srcDigestHandle)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+
+    return HandleMgr_addOnSuccess(
+               client->handleMgr,
+               HND_DIGEST,
+               OS_CryptoDigest_clone(
+                   pDigestHandle,
+                   client->hCrypto,
+                   HandleMgr_validate(
+                       client->handleMgr,
+                       HND_DIGEST,
+                       srcDigestHandle)),
+               (HandleMgr_Handle_t*) pDigestHandle);
+}
+
+OS_Error_t
+cryptoServer_rpc_Digest_process(
+    OS_CryptoDigest_Handle_t digestHandle,
+    size_t                   inSize)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+    CHK_SIZE(client, inSize);
+
+    return OS_CryptoDigest_process(
+               HandleMgr_validate(
+                   client->handleMgr,
+                   HND_DIGEST,
+                   digestHandle),
+               OS_Dataport_getBuf(*client->dataport),
+               inSize);
+}
+
+OS_Error_t
+cryptoServer_rpc_Digest_finalize(
+    OS_CryptoDigest_Handle_t digestHandle,
+    size_t*                  digestSize)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+    CHK_SIZE(client, *digestSize);
+
+    return OS_CryptoDigest_finalize(
+               HandleMgr_validate(
+                   client->handleMgr,
+                   HND_DIGEST,
+                   digestHandle),
+               OS_Dataport_getBuf(*client->dataport),
+               digestSize);
+}
+
+OS_Error_t
+cryptoServer_rpc_Key_generate(
+    OS_CryptoKey_Handle_t* pKeyHandle)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+
+    return HandleMgr_addOnSuccess(
+               client->handleMgr,
+               HND_KEY,
+               OS_CryptoKey_generate(
+                   pKeyHandle,
+                   client->hCrypto,
+                   OS_Dataport_getBuf(*client->dataport)),
+               (HandleMgr_Handle_t*) pKeyHandle);
+}
+
+OS_Error_t
+cryptoServer_rpc_Key_makePublic(
+    OS_CryptoKey_Handle_t* pPubKeyHandle,
+    OS_CryptoKey_Handle_t  prvKeyHandle)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+
+    return HandleMgr_addOnSuccess(
+               client->handleMgr,
+               HND_KEY,
+               OS_CryptoKey_makePublic(
+                   pPubKeyHandle,
+                   client->hCrypto,
+                   HandleMgr_validate(
+                       client->handleMgr,
+                       HND_KEY,
+                       prvKeyHandle),
+                   OS_Dataport_getBuf(*client->dataport)),
+               (HandleMgr_Handle_t*) pPubKeyHandle);
+}
+
+OS_Error_t
+cryptoServer_rpc_Key_import(
+    OS_CryptoKey_Handle_t* pKeyHandle)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+
+    return HandleMgr_addOnSuccess(
+               client->handleMgr,
+               HND_KEY,
+               OS_CryptoKey_import(
+                   pKeyHandle,
+                   client->hCrypto,
+                   OS_Dataport_getBuf(*client->dataport)),
+               (HandleMgr_Handle_t*) pKeyHandle);
+}
+
+OS_Error_t
+cryptoServer_rpc_Key_export(
+    OS_CryptoKey_Handle_t keyHandle)
+{
+    // The CryptoServer does not allow ANY kind of export; a key that is in the
+    // CryptoServer (either via import or generation) will never leave it.
+    return OS_ERROR_OPERATION_DENIED;
+}
+
+OS_Error_t
+cryptoServer_rpc_Key_getParams(
+    OS_CryptoKey_Handle_t keyHandle,
+    size_t*               paramSize)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+    CHK_SIZE(client, *paramSize);
+
+    return OS_CryptoKey_getParams(
+               HandleMgr_validate(
+                   client->handleMgr,
+                   HND_KEY,
+                   keyHandle),
+               OS_Dataport_getBuf(*client->dataport),
+               paramSize);
+}
+
+OS_Error_t
+cryptoServer_rpc_Key_getAttribs(
+    OS_CryptoKey_Handle_t keyHandle)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+
+    return OS_CryptoKey_getAttribs(
+               HandleMgr_validate(
+                   client->handleMgr,
+                   HND_KEY,
+                   keyHandle),
+               OS_Dataport_getBuf(*client->dataport));
+}
+
+OS_Error_t
+cryptoServer_rpc_Key_loadParams(
+    OS_CryptoKey_Param_t param,
+    size_t*              paramSize)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+    CHK_SIZE(client, *paramSize);
+
+    return OS_CryptoKey_loadParams(
+               client->hCrypto,
+               param,
+               OS_Dataport_getBuf(*client->dataport),
+               paramSize);
+}
+
+OS_Error_t
+cryptoServer_rpc_Key_free(
+    OS_CryptoKey_Handle_t keyHandle)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+
+    return HandleMgr_removeOnSuccess(
+               client->handleMgr,
+               HND_KEY,
+               OS_CryptoKey_free(
+                   HandleMgr_validate(
+                       client->handleMgr,
+                       HND_KEY,
+                       keyHandle)),
+               keyHandle);
+}
+
+OS_Error_t
+cryptoServer_rpc_Agreement_init(
+    OS_CryptoAgreement_Handle_t* pAgrHandle,
+    OS_CryptoKey_Handle_t        prvKeyHandle,
+    OS_CryptoAgreement_Alg_t     algorithm)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+
+    return HandleMgr_addOnSuccess(
+               client->handleMgr,
+               HND_AGREEMENT,
+               OS_CryptoAgreement_init(
+                   pAgrHandle,
+                   client->hCrypto,
+                   HandleMgr_validate(
+                       client->handleMgr,
+                       HND_KEY,
+                       prvKeyHandle),
+                   algorithm),
+               (HandleMgr_Handle_t*) pAgrHandle);
+}
+
+OS_Error_t
+cryptoServer_rpc_Agreement_agree(
+    OS_CryptoAgreement_Handle_t agrHandle,
+    OS_CryptoKey_Handle_t       pubKeyHandle,
+    size_t*                     sharedSize)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+    CHK_SIZE(client, *sharedSize);
+
+    return OS_CryptoAgreement_agree(
+               HandleMgr_validate(
+                   client->handleMgr,
+                   HND_AGREEMENT,
+                   agrHandle),
+               HandleMgr_validate(
+                   client->handleMgr,
+                   HND_KEY,
+                   pubKeyHandle),
+               OS_Dataport_getBuf(*client->dataport),
+               sharedSize);
+}
+
+OS_Error_t
+cryptoServer_rpc_Agreement_free(
+    OS_CryptoAgreement_Handle_t agrHandle)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+
+    return HandleMgr_removeOnSuccess(
+               client->handleMgr,
+               HND_AGREEMENT,
+               OS_CryptoAgreement_free(
+                   HandleMgr_validate(
+                       client->handleMgr,
+                       HND_AGREEMENT,
+                       agrHandle)),
+               agrHandle);
+}
+
+OS_Error_t
+cryptoServer_rpc_Signature_init(
+    OS_CryptoSignature_Handle_t* pSigHandle,
+    OS_CryptoKey_Handle_t        prvKeyHandle,
+    OS_CryptoKey_Handle_t        pubKeyHandle,
+    unsigned int                 algorithm,
+    unsigned int                 digest)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+
+    return HandleMgr_addOnSuccess(
+               client->handleMgr,
+               HND_SIGNATURE,
+               OS_CryptoSignature_init(
+                   pSigHandle,
+                   client->hCrypto,
+                   HandleMgr_validate(
+                       client->handleMgr,
+                       HND_KEY,
+                       prvKeyHandle),
+                   HandleMgr_validate(
+                       client->handleMgr,
+                       HND_KEY,
+                       pubKeyHandle),
+                   algorithm,
+                   digest),
+               (HandleMgr_Handle_t*) pSigHandle);
+}
+
+OS_Error_t
+cryptoServer_rpc_Signature_verify(
+    OS_CryptoSignature_Handle_t sigHandle,
+    size_t                      hashSize,
+    size_t                      signatureSize)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+    CHK_SIZE(client, hashSize + signatureSize);
+
+    return OS_CryptoSignature_verify(
+               HandleMgr_validate(
+                   client->handleMgr,
+                   HND_SIGNATURE,
+                   sigHandle),
+               OS_Dataport_getBuf(*client->dataport),
+               hashSize,
+               OS_Dataport_getBuf(*client->dataport) + hashSize,
+               signatureSize);
+}
+
+OS_Error_t
+cryptoServer_rpc_Signature_sign(
+    OS_CryptoSignature_Handle_t sigHandle,
+    size_t                      hashSize,
+    size_t*                     signatureSize)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+    CHK_SIZE(client, hashSize);
+    CHK_SIZE(client, *signatureSize);
+
+    return OS_CryptoSignature_sign(
+               HandleMgr_validate(
+                   client->handleMgr,
+                   HND_SIGNATURE,
+                   sigHandle),
+               OS_Dataport_getBuf(*client->dataport),
+               hashSize,
+               OS_Dataport_getBuf(*client->dataport),
+               signatureSize);
+}
+
+OS_Error_t
+cryptoServer_rpc_Signature_free(
+    OS_CryptoSignature_Handle_t sigHandle)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+
+    return HandleMgr_removeOnSuccess(
+               client->handleMgr,
+               HND_SIGNATURE,
+               OS_CryptoSignature_free(
+                   HandleMgr_validate(
+                       client->handleMgr,
+                       HND_SIGNATURE,
+                       sigHandle)),
+               sigHandle);
+}
+
+OS_Error_t
+cryptoServer_rpc_Cipher_init(
+    OS_CryptoCipher_Handle_t* pCipherHandle,
+    OS_CryptoKey_Handle_t     keyHandle,
+    unsigned int              algorithm,
+    size_t                    ivSize)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+    CHK_SIZE(client, ivSize);
+
+    return HandleMgr_addOnSuccess(
+               client->handleMgr,
+               HND_CIPHER,
+               OS_CryptoCipher_init(
+                   pCipherHandle,
+                   client->hCrypto,
+                   HandleMgr_validate(
+                       client->handleMgr,
+                       HND_KEY,
+                       keyHandle),
+                   algorithm,
+                   OS_Dataport_getBuf(*client->dataport),
+                   ivSize),
+               (HandleMgr_Handle_t*) pCipherHandle);
+}
+
+OS_Error_t
+cryptoServer_rpc_Cipher_free(
+    OS_CryptoCipher_Handle_t cipherHandle)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+
+    return HandleMgr_removeOnSuccess(
+               client->handleMgr,
+               HND_CIPHER,
+               OS_CryptoCipher_free(
+                   HandleMgr_validate(
+                       client->handleMgr,
+                       HND_CIPHER,
+                       cipherHandle)),
+               cipherHandle);
+}
+
+OS_Error_t
+cryptoServer_rpc_Cipher_process(
+    OS_CryptoCipher_Handle_t cipherHandle,
+    size_t                   inputSize,
+    size_t*                  outputSize)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+    CHK_SIZE(client, inputSize);
+    CHK_SIZE(client, *outputSize);
+
+    return OS_CryptoCipher_process(
+               HandleMgr_validate(
+                   client->handleMgr,
+                   HND_CIPHER,
+                   cipherHandle),
+               OS_Dataport_getBuf(*client->dataport),
+               inputSize,
+               OS_Dataport_getBuf(*client->dataport),
+               outputSize);
+}
+
+OS_Error_t
+cryptoServer_rpc_Cipher_start(
+    OS_CryptoCipher_Handle_t cipherHandle,
+    size_t                   len)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+
+    return OS_CryptoCipher_start(
+               HandleMgr_validate(
+                   client->handleMgr,
+                   HND_CIPHER,
+                   cipherHandle),
+               OS_Dataport_getBuf(*client->dataport),
+               len);
+}
+
+OS_Error_t
+cryptoServer_rpc_Cipher_finalize(
+    OS_CryptoCipher_Handle_t cipherHandle,
+    size_t*                  tagSize)
+{
+    CryptoServer_Client_t* client;
+
+    GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
+    CHK_SIZE(client, *tagSize);
+
+    return OS_CryptoCipher_finalize(
+               HandleMgr_validate(
+                   client->handleMgr,
+                   HND_CIPHER,
+                   cipherHandle),
+               OS_Dataport_getBuf(*client->dataport),
+               tagSize);
 }

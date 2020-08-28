@@ -5,8 +5,12 @@
  *
  */
 
+#include <if_OS_Crypto.camkes.h>
+
 procedure if_CryptoServer {
     include "OS_Crypto.h";
+
+    IF_OS_CRYPTO_CAMKES
 
     OS_Error_t
     storeKey(

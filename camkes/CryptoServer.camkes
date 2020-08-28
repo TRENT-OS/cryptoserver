@@ -23,16 +23,14 @@ struct CryptoServer_Config {
 #define DECLARE_COMPONENT_CryptoServer(_name_)                              \
                                                                             \
     component _name_ {                                                      \
-        maybe dataport  Buf                         crypto1_port;           \
-        maybe dataport  Buf                         crypto2_port;           \
-        maybe dataport  Buf                         crypto3_port;           \
-        maybe dataport  Buf                         crypto4_port;           \
-        maybe dataport  Buf                         crypto5_port;           \
-        maybe dataport  Buf                         crypto6_port;           \
-        maybe dataport  Buf                         crypto7_port;           \
-        maybe dataport  Buf                         crypto8_port;           \
-        provides        if_OS_Crypto                crypto_rpc;             \
-                                                                            \
+        maybe dataport  Buf                         cryptoServer_port1;     \
+        maybe dataport  Buf                         cryptoServer_port2;     \
+        maybe dataport  Buf                         cryptoServer_port3;     \
+        maybe dataport  Buf                         cryptoServer_port4;     \
+        maybe dataport  Buf                         cryptoServer_port5;     \
+        maybe dataport  Buf                         cryptoServer_port6;     \
+        maybe dataport  Buf                         cryptoServer_port7;     \
+        maybe dataport  Buf                         cryptoServer_port8;     \
         provides        if_CryptoServer             cryptoServer_rpc;       \
                                                                             \
         dataport        Buf                         entropy_port;           \
@@ -49,55 +47,49 @@ struct CryptoServer_Config {
 // Instance Connection
 
 #define CryptoServer_FE_0(WHAT, N,I)
-#define CryptoServer_FE_1(WHAT, N,I,R,D,S)      WHAT(N,I,R,D,S,1)
-#define CryptoServer_FE_2(WHAT, N,I,R,D,S, ...) WHAT(N,I,R,D,S,2) \
+#define CryptoServer_FE_1(WHAT, N,I,R,D)      WHAT(N,I,R,D,1)
+#define CryptoServer_FE_2(WHAT, N,I,R,D, ...) WHAT(N,I,R,D,2) \
     CryptoServer_FE_1(WHAT, N,I, __VA_ARGS__)
-#define CryptoServer_FE_3(WHAT, N,I,R,D,S, ...) WHAT(N,I,R,D,S,3) \
+#define CryptoServer_FE_3(WHAT, N,I,R,D, ...) WHAT(N,I,R,D,3) \
     CryptoServer_FE_2(WHAT, N,I, __VA_ARGS__)
-#define CryptoServer_FE_4(WHAT, N,I,R,D,S, ...) WHAT(N,I,R,D,S,4) \
+#define CryptoServer_FE_4(WHAT, N,I,R,D, ...) WHAT(N,I,R,D,4) \
     CryptoServer_FE_3(WHAT, N,I, __VA_ARGS__)
-#define CryptoServer_FE_5(WHAT, N,I,R,D,S, ...) WHAT(N,I,R,D,S,5) \
+#define CryptoServer_FE_5(WHAT, N,I,R,D, ...) WHAT(N,I,R,D,5) \
     CryptoServer_FE_4(WHAT, N,I, __VA_ARGS__)
-#define CryptoServer_FE_6(WHAT, N,I,R,D,S, ...) WHAT(N,I,R,D,S,6) \
+#define CryptoServer_FE_6(WHAT, N,I,R,D, ...) WHAT(N,I,R,D,6) \
     CryptoServer_FE_5(WHAT, N,I, __VA_ARGS__)
-#define CryptoServer_FE_7(WHAT, N,I,R,D,S, ...) WHAT(N,I,R,D,S,7) \
+#define CryptoServer_FE_7(WHAT, N,I,R,D, ...) WHAT(N,I,R,D,7) \
     CryptoServer_FE_6(WHAT, N,I, __VA_ARGS__)
-#define CryptoServer_FE_8(WHAT, N,I,R,D,S, ...) WHAT(N,I,R,D,S,8) \
+#define CryptoServer_FE_8(WHAT, N,I,R,D, ...) WHAT(N,I,R,D,8) \
     CryptoServer_FE_7(WHAT, N,I, __VA_ARGS__)
-#define CryptoServer_GET_MACRO(_0,                      \
-    _10,_11,_12,_20,_21,_22,_30,_31,_32,_40,_41,_42,    \
-    _50,_51,_52,_60,_61,_62,_70,_71,_72,_80,_81,_82,    \
-    NAME,...)                                           \
+#define CryptoServer_GET_MACRO(_00,    \
+    _10,_11,_20,_21,_30,_31,_40,_41,    \
+    _50,_51,_60,_61,_70,_71,_80,_81,    \
+    NAME,...)                           \
         CryptoServer_ ## NAME
-#define CryptoServer_FOR_EACH(action, _name_, _inst_, ...)          \
-  CryptoServer_GET_MACRO(_0,__VA_ARGS__,                            \
-    FE_8,FE_8,FE_8,FE_7,FE_7,FE_7,FE_6,FE_6,FE_6,FE_5,FE_5,FE_5,    \
-    FE_4,FE_4,FE_4,FE_3,FE_3,FE_3,FE_2,FE_2,FE_2,FE_1,FE_1,FE_1)    \
+#define CryptoServer_FOR_EACH(action, _name_, _inst_, ...)     \
+  CryptoServer_GET_MACRO(_0,__VA_ARGS__,                       \
+    FE_8,FE_8,FE_7,FE_7,FE_6,FE_6,FE_5,FE_5,                    \
+    FE_4,FE_4,FE_3,FE_3,FE_2,FE_2,FE_1,FE_1)                    \
         (action,_name_,_inst_,__VA_ARGS__)
 
 // Set a single connection
 #define CryptoServer_CONNECTION(                            \
     _name_,                                                 \
     _inst_,                                                 \
-    _caller_crypto_rpc_,                                    \
-    _caller_crypto_port_,                                   \
-    _caller_server_rpc_,                                    \
+    _cryptoServer_rpc_,                                     \
+    _cryptoServer_port_,                                    \
     _num_)                                                  \
                                                             \
     connection  seL4RPCCall                                 \
         _name_ ## _ ## _inst_ ## crypto_rpc ## _num_ (      \
-            from    _caller_crypto_rpc_,                    \
-            to      _inst_.crypto_rpc                       \
+            from    _cryptoServer_rpc_,                     \
+            to      _inst_.cryptoServer_rpc                 \
         );                                                  \
     connection seL4SharedData                               \
         _name_ ## _ ## _inst_ ## crypto_port ## _num_ (     \
-            from    _caller_crypto_port_,                   \
-            to      _inst_.crypto ## _num_ ## _port         \
-        );                                                  \
-    connection  seL4RPCCall                                 \
-        _name_ ## _ ## _inst_ ## _rpc ## _num_ (            \
-            from    _caller_server_rpc_,                    \
-            to      _inst_.cryptoServer_rpc                 \
+            from    _cryptoServer_port_,                    \
+            to      _inst_.cryptoServer ## _port ## _num_   \
         );
 
 
@@ -109,8 +101,8 @@ struct CryptoServer_Config {
  *          CryptoServer, CryptoServer
  *          entropySource.entropy_rpc, entropySource.entropy_port,
  *          ramDisk.storage_rpc,       ramDisk.storage_port,
- *          client0.crypto_rpc, client0.crypto_port, client0.cryptoServer_port,
- *          client1.crypto_rpc, client1.crypto_port, client1.cryptoServer_port)
+ *          client0.cryptoServer_rpc,  client0.cryptoServer_port,
+ *          client0.cryptoServer_rpc,  client1.cryptoServer_port)
  *
  */
 #define DECLARE_AND_CONNECT_INSTANCE_CryptoServer(                              \
@@ -150,6 +142,6 @@ struct CryptoServer_Config {
 //------------------------------------------------------------------------------
 // Assignments for instance
 
-#define ASSIGN_CLIENT_BADGE_CryptoServer(_client_, _server_rpc_, _crypto_rpc_, _val_) \
-    _client_._server_rpc_ ## _attributes = _val_;   \
-    _client_._crypto_rpc_ ## _attributes = _val_;
+#define ASSIGN_CLIENT_BADGE_CryptoServer(_client_, _cryptoServer_rpc_, _val_) \
+    _client_._cryptoServer_rpc_ ## _attributes = _val_;
+

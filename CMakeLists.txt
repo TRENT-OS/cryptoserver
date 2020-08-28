@@ -43,7 +43,7 @@ function(DeclareCAmkESComponent_CryptoServer
         LIBS
             os_core_api
             os_libs
-            os_crypto_with_rpc_server
+            os_crypto
             os_filesystem
             os_keystore
     )
@@ -65,11 +65,6 @@ function(DeclareCAmkESComponent_CryptoServer
     target_include_directories(${PROJECT_NAME}
         INTERFACE
             ${OS_COMPONENT_CryptoServer_DIR}/client/include
-    )
-
-    target_link_libraries(${PROJECT_NAME}
-        INTERFACE
-            os_crypto_with_rpc_client
     )
 
 endfunction()
