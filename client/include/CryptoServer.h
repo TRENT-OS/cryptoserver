@@ -14,6 +14,8 @@
 
 #include "OS_Crypto.h"
 
+#include "if_CryptoServer.h"
+
 #include <camkes.h>
 
 /**
@@ -31,6 +33,7 @@
  *
  * NOTE: The key has to be freed once it is no longer used.
  *
+ * @param rpc (required) pointer to CAmkES rpc struct
  * @param hKey (required) pointer to handle of OS Crypto Key object
  * @param hCrypto (required) handle of OS Crypto API
  * @param ownerId (required) ID of key's owner
@@ -46,10 +49,11 @@
  */
 OS_Error_t
 CryptoServer_loadKey(
-    OS_CryptoKey_Handle_t* hKey,
-    OS_Crypto_Handle_t     hCrypto,
-    seL4_Word              ownerId,
-    const char*            name);
+    const if_CryptoServer_t* rpc,
+    OS_CryptoKey_Handle_t*   hKey,
+    OS_Crypto_Handle_t       hCrypto,
+    seL4_Word                ownerId,
+    const char*              name);
 
 /**
  * @brief Store a key in the CryptoServer's KeyStore
@@ -68,6 +72,7 @@ CryptoServer_loadKey(
  * NOTE: Due to restrictions of the underlying file systems, key names are limited
  *       to 8 characters.
  *
+ * @param rpc (required) pointer to CAmkES rpc struct
  * @param hKey (required) handle of OS Crypto Key object
  * @param name (required) name of key
  *
@@ -84,7 +89,8 @@ CryptoServer_loadKey(
  */
 OS_Error_t
 CryptoServer_storeKey(
-    OS_CryptoKey_Handle_t hKey,
-    const char*           name);
+    const if_CryptoServer_t* rpc,
+    OS_CryptoKey_Handle_t    hKey,
+    const char*              name);
 
 /** @} */
