@@ -11,6 +11,7 @@ import <CryptoServer/camkes/if_CryptoServer.camkes>;
 struct CryptoServer_ClientConfig {
     int storageLimit;
     int allowedIds[];
+    int handleMgrCapacity;
 }
 
 struct CryptoServer_Config {

@@ -92,7 +92,8 @@ typedef struct
 {
     unsigned int id;
     OS_Crypto_Handle_t hCrypto;
-    HandleMgr_t* handleMgr;
+    char* handleMgrMem[HND_MAX];
+    HandleMgr_t handleMgrs[HND_MAX];
     OS_Dataport_t* dataport;
     CryptoServer_KeyStore_t keys;
 } CryptoServer_Client_t;
@@ -194,19 +195,46 @@ err0:
     return err;
 }
 
-static OS_Error_t
+static inline OS_Error_t
 initCrypto(
-    OS_Crypto_Handle_t* hCrypto,
-    HandleMgr_t**       handleMgr)
+    CryptoServer_Client_t* client)
 {
-    OS_Error_t err;
+    OS_Error_t err = OS_ERROR_GENERIC;
+    int i = 0;
 
-    if ((err = HandleMgr_init(handleMgr, HND_MAX)) != OS_SUCCESS)
+    for (; i < HND_MAX; i++)
     {
-        return err;
-    }
+        size_t handleMgrMemSize =
+            HandleMgr_GET_SIZE_BY_CAPACITY(
+                cryptoServer_config.clients[client->id-1].handleMgrCapacity);
+        client->handleMgrMem[i] = malloc(handleMgrMemSize);
 
-    return OS_Crypto_init(hCrypto, &cfgCrypto);
+        if (client->handleMgrMem[i] != NULL)
+        {
+            if ((err = HandleMgr_init(&client->handleMgrs[i],
+                                        client->handleMgrMem[i],
+                                        handleMgrMemSize,
+                                        NULL)) != OS_SUCCESS)
+            {
+                free(client->handleMgrMem[i]);
+                goto error;
+            }
+        }
+        else
+        {
+            err = OS_ERROR_INSUFFICIENT_SPACE;
+            goto error;
+        }
+    }
+    return OS_Crypto_init(&client->hCrypto, &cfgCrypto);
+
+error:
+    for (i = i-1; i >= 0; i--)
+    {
+        HandleMgr_free(&client->handleMgrs[i]);
+        free(client->handleMgrMem[i]);
+    }
+    return err;
 }
 
 // -----------------------------------------------------------------------------
@@ -247,7 +275,7 @@ post_init()
             return;
         }
         // Init client's Crypto API instance and list of handles
-        if ((err = initCrypto(&client->hCrypto, &client->handleMgr)) != OS_SUCCESS)
+        if ((err = initCrypto(client)) != OS_SUCCESS)
         {
             Debug_LOG_ERROR("initCrypto() failed with %d", err);
             return;
@@ -307,8 +335,7 @@ cryptoServer_rpc_loadKey(
     }
 
     return HandleMgr_addOnSuccess(
-               client->handleMgr,
-               HND_KEY,
+               &client->handleMgrs[HND_KEY],
                OS_CryptoKey_import(
                    pKeyHandle,
                    client->hCrypto,
@@ -401,14 +428,12 @@ cryptoServer_rpc_Mac_init(
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
 
     return HandleMgr_addOnSuccess(
-               client->handleMgr,
-               HND_MAC,
+               &client->handleMgrs[HND_MAC],
                OS_CryptoMac_init(
                    pMacHandle,
                    client->hCrypto,
                    HandleMgr_validate(
-                       client->handleMgr,
-                       HND_KEY,
+                       &client->handleMgrs[HND_KEY],
                        keyHandle),
                    algorithm),
                (HandleMgr_Handle_t*) pMacHandle);
@@ -423,12 +448,10 @@ cryptoServer_rpc_Mac_free(
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
 
     return HandleMgr_removeOnSuccess(
-               client->handleMgr,
-               HND_MAC,
+               &client->handleMgrs[HND_MAC],
                OS_CryptoMac_free(
                    HandleMgr_validate(
-                       client->handleMgr,
-                       HND_MAC,
+                       &client->handleMgrs[HND_MAC],
                        macHandle)),
                macHandle);
 }
@@ -445,8 +468,7 @@ cryptoServer_rpc_Mac_process(
 
     return OS_CryptoMac_process(
                HandleMgr_validate(
-                   client->handleMgr,
-                   HND_MAC,
+                   &client->handleMgrs[HND_MAC],
                    macHandle),
                OS_Dataport_getBuf(*client->dataport),
                dataSize);
@@ -464,8 +486,7 @@ cryptoServer_rpc_Mac_finalize(
 
     return OS_CryptoMac_finalize(
                HandleMgr_validate(
-                   client->handleMgr,
-                   HND_MAC,
+                   &client->handleMgrs[HND_MAC],
                    macHandle),
                OS_Dataport_getBuf(*client->dataport),
                macSize);
@@ -481,8 +502,7 @@ cryptoServer_rpc_Digest_init(
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
 
     return HandleMgr_addOnSuccess(
-               client->handleMgr,
-               HND_DIGEST,
+               &client->handleMgrs[HND_DIGEST],
                OS_CryptoDigest_init(
                    pDigestHandle,
                    client->hCrypto,
@@ -499,12 +519,10 @@ cryptoServer_rpc_Digest_free(
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
 
     return HandleMgr_removeOnSuccess(
-               client->handleMgr,
-               HND_DIGEST,
+               &client->handleMgrs[HND_DIGEST],
                OS_CryptoDigest_free(
                    HandleMgr_validate(
-                       client->handleMgr,
-                       HND_DIGEST,
+                       &client->handleMgrs[HND_DIGEST],
                        digestHandle)),
                digestHandle);
 }
@@ -519,14 +537,12 @@ cryptoServer_rpc_Digest_clone(
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
 
     return HandleMgr_addOnSuccess(
-               client->handleMgr,
-               HND_DIGEST,
+               &client->handleMgrs[HND_DIGEST],
                OS_CryptoDigest_clone(
                    pDigestHandle,
                    client->hCrypto,
                    HandleMgr_validate(
-                       client->handleMgr,
-                       HND_DIGEST,
+                       &client->handleMgrs[HND_DIGEST],
                        srcDigestHandle)),
                (HandleMgr_Handle_t*) pDigestHandle);
 }
@@ -543,8 +559,7 @@ cryptoServer_rpc_Digest_process(
 
     return OS_CryptoDigest_process(
                HandleMgr_validate(
-                   client->handleMgr,
-                   HND_DIGEST,
+                   &client->handleMgrs[HND_DIGEST],
                    digestHandle),
                OS_Dataport_getBuf(*client->dataport),
                inSize);
@@ -562,8 +577,7 @@ cryptoServer_rpc_Digest_finalize(
 
     return OS_CryptoDigest_finalize(
                HandleMgr_validate(
-                   client->handleMgr,
-                   HND_DIGEST,
+                   &client->handleMgrs[HND_DIGEST],
                    digestHandle),
                OS_Dataport_getBuf(*client->dataport),
                digestSize);
@@ -578,8 +592,7 @@ cryptoServer_rpc_Key_generate(
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
 
     return HandleMgr_addOnSuccess(
-               client->handleMgr,
-               HND_KEY,
+               &client->handleMgrs[HND_KEY],
                OS_CryptoKey_generate(
                    pKeyHandle,
                    client->hCrypto,
@@ -597,14 +610,12 @@ cryptoServer_rpc_Key_makePublic(
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
 
     return HandleMgr_addOnSuccess(
-               client->handleMgr,
-               HND_KEY,
+               &client->handleMgrs[HND_KEY],
                OS_CryptoKey_makePublic(
                    pPubKeyHandle,
                    client->hCrypto,
                    HandleMgr_validate(
-                       client->handleMgr,
-                       HND_KEY,
+                       &client->handleMgrs[HND_KEY],
                        prvKeyHandle),
                    OS_Dataport_getBuf(*client->dataport)),
                (HandleMgr_Handle_t*) pPubKeyHandle);
@@ -619,8 +630,7 @@ cryptoServer_rpc_Key_import(
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
 
     return HandleMgr_addOnSuccess(
-               client->handleMgr,
-               HND_KEY,
+               &client->handleMgrs[HND_KEY],
                OS_CryptoKey_import(
                    pKeyHandle,
                    client->hCrypto,
@@ -649,8 +659,7 @@ cryptoServer_rpc_Key_getParams(
 
     return OS_CryptoKey_getParams(
                HandleMgr_validate(
-                   client->handleMgr,
-                   HND_KEY,
+                   &client->handleMgrs[HND_KEY],
                    keyHandle),
                OS_Dataport_getBuf(*client->dataport),
                paramSize);
@@ -666,8 +675,7 @@ cryptoServer_rpc_Key_getAttribs(
 
     return OS_CryptoKey_getAttribs(
                HandleMgr_validate(
-                   client->handleMgr,
-                   HND_KEY,
+                   &client->handleMgrs[HND_KEY],
                    keyHandle),
                OS_Dataport_getBuf(*client->dataport));
 }
@@ -698,12 +706,10 @@ cryptoServer_rpc_Key_free(
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
 
     return HandleMgr_removeOnSuccess(
-               client->handleMgr,
-               HND_KEY,
+               &client->handleMgrs[HND_KEY],
                OS_CryptoKey_free(
                    HandleMgr_validate(
-                       client->handleMgr,
-                       HND_KEY,
+                       &client->handleMgrs[HND_KEY],
                        keyHandle)),
                keyHandle);
 }
@@ -719,14 +725,12 @@ cryptoServer_rpc_Agreement_init(
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
 
     return HandleMgr_addOnSuccess(
-               client->handleMgr,
-               HND_AGREEMENT,
+               &client->handleMgrs[HND_AGREEMENT],
                OS_CryptoAgreement_init(
                    pAgrHandle,
                    client->hCrypto,
                    HandleMgr_validate(
-                       client->handleMgr,
-                       HND_KEY,
+                       &client->handleMgrs[HND_KEY],
                        prvKeyHandle),
                    algorithm),
                (HandleMgr_Handle_t*) pAgrHandle);
@@ -745,12 +749,10 @@ cryptoServer_rpc_Agreement_agree(
 
     return OS_CryptoAgreement_agree(
                HandleMgr_validate(
-                   client->handleMgr,
-                   HND_AGREEMENT,
+                   &client->handleMgrs[HND_AGREEMENT],
                    agrHandle),
                HandleMgr_validate(
-                   client->handleMgr,
-                   HND_KEY,
+                   &client->handleMgrs[HND_KEY],
                    pubKeyHandle),
                OS_Dataport_getBuf(*client->dataport),
                sharedSize);
@@ -765,12 +767,10 @@ cryptoServer_rpc_Agreement_free(
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
 
     return HandleMgr_removeOnSuccess(
-               client->handleMgr,
-               HND_AGREEMENT,
+               &client->handleMgrs[HND_AGREEMENT],
                OS_CryptoAgreement_free(
                    HandleMgr_validate(
-                       client->handleMgr,
-                       HND_AGREEMENT,
+                       &client->handleMgrs[HND_AGREEMENT],
                        agrHandle)),
                agrHandle);
 }
@@ -788,18 +788,15 @@ cryptoServer_rpc_Signature_init(
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
 
     return HandleMgr_addOnSuccess(
-               client->handleMgr,
-               HND_SIGNATURE,
+               &client->handleMgrs[HND_SIGNATURE],
                OS_CryptoSignature_init(
                    pSigHandle,
                    client->hCrypto,
                    HandleMgr_validate(
-                       client->handleMgr,
-                       HND_KEY,
+                       &client->handleMgrs[HND_KEY],
                        prvKeyHandle),
                    HandleMgr_validate(
-                       client->handleMgr,
-                       HND_KEY,
+                       &client->handleMgrs[HND_KEY],
                        pubKeyHandle),
                    algorithm,
                    digest),
@@ -819,8 +816,7 @@ cryptoServer_rpc_Signature_verify(
 
     return OS_CryptoSignature_verify(
                HandleMgr_validate(
-                   client->handleMgr,
-                   HND_SIGNATURE,
+                   &client->handleMgrs[HND_SIGNATURE],
                    sigHandle),
                OS_Dataport_getBuf(*client->dataport),
                hashSize,
@@ -842,8 +838,7 @@ cryptoServer_rpc_Signature_sign(
 
     return OS_CryptoSignature_sign(
                HandleMgr_validate(
-                   client->handleMgr,
-                   HND_SIGNATURE,
+                   &client->handleMgrs[HND_SIGNATURE],
                    sigHandle),
                OS_Dataport_getBuf(*client->dataport),
                hashSize,
@@ -860,12 +855,10 @@ cryptoServer_rpc_Signature_free(
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
 
     return HandleMgr_removeOnSuccess(
-               client->handleMgr,
-               HND_SIGNATURE,
+               &client->handleMgrs[HND_SIGNATURE],
                OS_CryptoSignature_free(
                    HandleMgr_validate(
-                       client->handleMgr,
-                       HND_SIGNATURE,
+                       &client->handleMgrs[HND_SIGNATURE],
                        sigHandle)),
                sigHandle);
 }
@@ -883,14 +876,12 @@ cryptoServer_rpc_Cipher_init(
     CHK_SIZE(client, ivSize);
 
     return HandleMgr_addOnSuccess(
-               client->handleMgr,
-               HND_CIPHER,
+               &client->handleMgrs[HND_CIPHER],
                OS_CryptoCipher_init(
                    pCipherHandle,
                    client->hCrypto,
                    HandleMgr_validate(
-                       client->handleMgr,
-                       HND_KEY,
+                       &client->handleMgrs[HND_KEY],
                        keyHandle),
                    algorithm,
                    OS_Dataport_getBuf(*client->dataport),
@@ -907,12 +898,10 @@ cryptoServer_rpc_Cipher_free(
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
 
     return HandleMgr_removeOnSuccess(
-               client->handleMgr,
-               HND_CIPHER,
+               &client->handleMgrs[HND_CIPHER],
                OS_CryptoCipher_free(
                    HandleMgr_validate(
-                       client->handleMgr,
-                       HND_CIPHER,
+                       &client->handleMgrs[HND_CIPHER],
                        cipherHandle)),
                cipherHandle);
 }
@@ -931,8 +920,7 @@ cryptoServer_rpc_Cipher_process(
 
     return OS_CryptoCipher_process(
                HandleMgr_validate(
-                   client->handleMgr,
-                   HND_CIPHER,
+                   &client->handleMgrs[HND_CIPHER],
                    cipherHandle),
                OS_Dataport_getBuf(*client->dataport),
                inputSize,
@@ -951,8 +939,7 @@ cryptoServer_rpc_Cipher_start(
 
     return OS_CryptoCipher_start(
                HandleMgr_validate(
-                   client->handleMgr,
-                   HND_CIPHER,
+                   &client->handleMgrs[HND_CIPHER],
                    cipherHandle),
                OS_Dataport_getBuf(*client->dataport),
                len);
@@ -970,8 +957,7 @@ cryptoServer_rpc_Cipher_finalize(
 
     return OS_CryptoCipher_finalize(
                HandleMgr_validate(
-                   client->handleMgr,
-                   HND_CIPHER,
+                   &client->handleMgrs[HND_CIPHER],
                    cipherHandle),
                OS_Dataport_getBuf(*client->dataport),
                tagSize);
