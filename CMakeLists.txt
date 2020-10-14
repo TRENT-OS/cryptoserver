@@ -1,5 +1,5 @@
 #
-# Crypto Server CAmkES Component
+# Crypto server
 #
 # Copyright (C) 2020, Hensoldt Cyber GmbH
 #
