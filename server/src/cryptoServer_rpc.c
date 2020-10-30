@@ -266,7 +266,7 @@ post_init()
 
         // Set up an instance of the Crypto API for each client which is then
         // accessed via its RPC interface; every client has its own dataport.
-        client->dataport = &ports[clients - i - 1];
+        client->dataport = &ports[i];
         if (OS_Dataport_isUnset(*client->dataport))
         {
             Debug_LOG_ERROR("Dataport %i is unset, it should be connected "
