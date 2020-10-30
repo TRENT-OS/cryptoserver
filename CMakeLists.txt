@@ -17,7 +17,7 @@ cmake_minimum_required(VERSION 3.17)
 #     component instance name. The server will be called "<name>" and the
 #     corresponding client library will be called "<name>_client"
 #
-function(DeclareCAmkESComponent_CryptoServer
+function(CryptoServer_DeclareCAmkESComponent
     name
 )
 
