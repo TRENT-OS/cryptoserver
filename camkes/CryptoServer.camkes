@@ -8,6 +8,12 @@ import <if_OS_Storage.camkes>;
 
 import <CryptoServer/camkes/if_CryptoServer.camkes>;
 
+#include "LibMacros/ForEach.h"
+
+
+//------------------------------------------------------------------------------
+
+
 struct CryptoServer_ClientConfig {
     int storageLimit;
     int allowedIds[];
@@ -18,131 +24,117 @@ struct CryptoServer_Config {
     CryptoServer_ClientConfig clients[];
 }
 
-//------------------------------------------------------------------------------
-// Component
 
-#define DECLARE_COMPONENT_CryptoServer(_name_)                              \
-                                                                            \
-    component _name_ {                                                      \
-        maybe dataport  Buf                         cryptoServer_port1;     \
-        maybe dataport  Buf                         cryptoServer_port2;     \
-        maybe dataport  Buf                         cryptoServer_port3;     \
-        maybe dataport  Buf                         cryptoServer_port4;     \
-        maybe dataport  Buf                         cryptoServer_port5;     \
-        maybe dataport  Buf                         cryptoServer_port6;     \
-        maybe dataport  Buf                         cryptoServer_port7;     \
-        maybe dataport  Buf                         cryptoServer_port8;     \
-        provides        if_CryptoServer             cryptoServer_rpc;       \
-                                                                            \
-        dataport        Buf                         entropy_port;           \
-        uses            if_OS_Entropy               entropy_rpc;            \
-                                                                            \
-        dataport        Buf                         storage_port;           \
-        uses            if_OS_Storage               storage_rpc;            \
-                                                                            \
-        attribute       CryptoServer_Config         cryptoServer_config;    \
+//------------------------------------------------------------------------------
+
+
+#define CryptoServer_COMPONENT_DECLARE( \
+    _name_) \
+    \
+    component _name_ { \
+        maybe dataport  Buf                         cryptoServer_port1; \
+        maybe dataport  Buf                         cryptoServer_port2; \
+        maybe dataport  Buf                         cryptoServer_port3; \
+        maybe dataport  Buf                         cryptoServer_port4; \
+        maybe dataport  Buf                         cryptoServer_port5; \
+        maybe dataport  Buf                         cryptoServer_port6; \
+        maybe dataport  Buf                         cryptoServer_port7; \
+        maybe dataport  Buf                         cryptoServer_port8; \
+        provides        if_CryptoServer             cryptoServer_rpc;   \
+        \
+        dataport        Buf                         entropy_port; \
+        uses            if_OS_Entropy               entropy_rpc; \
+        \
+        dataport        Buf                         storage_port; \
+        uses            if_OS_Storage               storage_rpc; \
+        \
+        attribute       CryptoServer_Config         cryptoServer_config; \
     }
 
 
 //------------------------------------------------------------------------------
-// Instance Connection
 
-#define CryptoServer_FE_0(WHAT, N,I)
-#define CryptoServer_FE_1(WHAT, N,I,R,D)      WHAT(N,I,R,D,1)
-#define CryptoServer_FE_2(WHAT, N,I,R,D, ...) WHAT(N,I,R,D,2) \
-    CryptoServer_FE_1(WHAT, N,I, __VA_ARGS__)
-#define CryptoServer_FE_3(WHAT, N,I,R,D, ...) WHAT(N,I,R,D,3) \
-    CryptoServer_FE_2(WHAT, N,I, __VA_ARGS__)
-#define CryptoServer_FE_4(WHAT, N,I,R,D, ...) WHAT(N,I,R,D,4) \
-    CryptoServer_FE_3(WHAT, N,I, __VA_ARGS__)
-#define CryptoServer_FE_5(WHAT, N,I,R,D, ...) WHAT(N,I,R,D,5) \
-    CryptoServer_FE_4(WHAT, N,I, __VA_ARGS__)
-#define CryptoServer_FE_6(WHAT, N,I,R,D, ...) WHAT(N,I,R,D,6) \
-    CryptoServer_FE_5(WHAT, N,I, __VA_ARGS__)
-#define CryptoServer_FE_7(WHAT, N,I,R,D, ...) WHAT(N,I,R,D,7) \
-    CryptoServer_FE_6(WHAT, N,I, __VA_ARGS__)
-#define CryptoServer_FE_8(WHAT, N,I,R,D, ...) WHAT(N,I,R,D,8) \
-    CryptoServer_FE_7(WHAT, N,I, __VA_ARGS__)
-#define CryptoServer_GET_MACRO(_00,    \
-    _10,_11,_20,_21,_30,_31,_40,_41,    \
-    _50,_51,_60,_61,_70,_71,_80,_81,    \
-    NAME,...)                           \
-        CryptoServer_ ## NAME
-#define CryptoServer_FOR_EACH(action, _name_, _inst_, ...)     \
-  CryptoServer_GET_MACRO(_0,__VA_ARGS__,                       \
-    FE_8,FE_8,FE_7,FE_7,FE_6,FE_6,FE_5,FE_5,                    \
-    FE_4,FE_4,FE_3,FE_3,FE_2,FE_2,FE_1,FE_1)                    \
-        (action,_name_,_inst_,__VA_ARGS__)
 
-// Set a single connection
-#define CryptoServer_CONNECTION(                            \
-    _name_,                                                 \
-    _inst_,                                                 \
-    _cryptoServer_rpc_,                                     \
-    _cryptoServer_port_,                                    \
-    _num_)                                                  \
-                                                            \
-    connection  seL4RPCCall                                 \
-        _name_ ## _ ## _inst_ ## crypto_rpc ## _num_ (      \
-            from    _cryptoServer_rpc_,                     \
-            to      _inst_.cryptoServer_rpc                 \
-        );                                                  \
-    connection seL4SharedData                               \
-        _name_ ## _ ## _inst_ ## crypto_port ## _num_ (     \
-            from    _cryptoServer_port_,                    \
-            to      _inst_.cryptoServer ## _port ## _num_   \
+#define CryptoServer_INSTANCE_CONNECT( \
+    _inst_, \
+    _entropy_rpc_, \
+    _entropy_port_, \
+    _storage_rpc_, \
+    _storage_port_) \
+    \
+    connection  seL4RPCCall \
+        _inst_ ## _entropy_rpc( \
+            from    _inst_.entropy_rpc, \
+            to      _entropy_rpc_ \
+        ); \
+    connection seL4SharedData \
+        _inst_ ## _entropy_port( \
+            from    _inst_.entropy_port, \
+            to      _entropy_port_ \
+        ); \
+    connection  seL4RPCCall \
+        _inst_ ## _storage_rpc( \
+            from    _inst_.storage_rpc, \
+            to      _storage_rpc_ \
+        ); \
+    connection seL4SharedData \
+        _inst_ ## _storage_port( \
+            from    _inst_.storage_port, \
+            to      _storage_port_ \
         );
 
 
-/*
- * With the macro magic above we can use this macro with more than one
- * client, i.e.,
- *
- *      DECLARE_AND_CONNECT_INSTANCE_CryptoServer(
- *          CryptoServer, CryptoServer
- *          entropySource.entropy_rpc, entropySource.entropy_port,
- *          ramDisk.storage_rpc,       ramDisk.storage_port,
- *          client0.cryptoServer_rpc,  client0.cryptoServer_port,
- *          client0.cryptoServer_rpc,  client1.cryptoServer_port)
- *
- */
-#define DECLARE_AND_CONNECT_INSTANCE_CryptoServer(                              \
-    _name_,                                                                     \
-    _inst_,                                                                     \
-    _entropy_rpc_,                                                              \
-    _entropy_port_,                                                             \
-    _storage_rpc_,                                                              \
-    _storage_port_,                                                             \
-    ...)                                                                        \
-                                                                                \
-    component   _name_  _inst_;                                                 \
-                                                                                \
-    connection  seL4RPCCall                                                     \
-        _name_ ## _ ## _inst_ ## _entropy_rpc   (                               \
-            from    _inst_.entropy_rpc,                                         \
-            to      _entropy_rpc_                                               \
-        );                                                                      \
-    connection seL4SharedData                                                   \
-        _name_ ## _ ## _inst_ ## _entropy_port (                                \
-            from    _inst_.entropy_port,                                        \
-            to      _entropy_port_                                              \
-        );                                                                      \
-    connection  seL4RPCCall                                                     \
-        _name_ ## _ ## _inst_ ## _storage_rpc   (                               \
-            from    _inst_.storage_rpc,                                         \
-            to      _storage_rpc_                                               \
-        );                                                                      \
-    connection seL4SharedData                                                   \
-        _name_ ## _ ## _inst_ ## _storage_port (                                \
-            from    _inst_.storage_port,                                        \
-            to      _storage_port_                                              \
-        );                                                                      \
-    CryptoServer_FOR_EACH(CryptoServer_CONNECTION, _name_, _inst_, __VA_ARGS__)
+//------------------------------------------------------------------------------
+
+
+// Set a single connection; this is used internally
+#define CryptoServer_CLIENT_CONNECTOR( \
+    _inst_, \
+    _unused_, \
+    _rpc_, \
+    _port_, \
+    _num_) \
+    \
+    connection  seL4RPCCall \
+        _inst_ ## crypto_rpc ## _num_( \
+            from    _rpc_, \
+            to      _inst_.cryptoServer_rpc \
+        ); \
+    connection seL4SharedData \
+        _inst_ ## crypto_port ## _num_ ( \
+            from    _port_, \
+            to      _inst_.cryptoServer ## _port ## _num_ \
+        );
+
+
+#define CryptoServer_INSTANCE_CONNECT_CLIENTS( \
+    _inst_, \
+    ...) \
+    \
+    FOR_EACH_2P(CryptoServer_CLIENT_CONNECTOR,_inst_,UNUSED,__VA_ARGS__)
 
 
 //------------------------------------------------------------------------------
-// Assignments for instance
 
-#define ASSIGN_CLIENT_BADGE_CryptoServer(_client_, _cryptoServer_rpc_, _val_) \
-    _client_._cryptoServer_rpc_ ## _attributes = _val_;
 
+// Assign a single badge; this is used internally
+#define CryptoServer_BADGE_ASSIGNER( \
+    _unused0_, \
+    _unused1_, \
+    _rpc_, \
+    _num_) \
+    \
+    _rpc_ ## _attributes = _num_;
+
+
+#define CryptoServer_CLIENT_ASSIGN_BADGE( \
+    _rpc_, \
+    _val_) \
+    \
+    _rpc_ ## _attributes = _val_;
+
+
+#define CryptoServer_CLIENT_ASSIGN_BADGES( \
+    ...) \
+    \
+    FOR_EACH_1P(CryptoServer_BADGE_ASSIGNER,UNUSED,UNUSED,__VA_ARGS__)
