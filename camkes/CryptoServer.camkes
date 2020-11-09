@@ -9,8 +9,8 @@
  *
  *      #include "CryptoServer/camkes/CryptoServer.camkes"
  *
- *      CryptoServer_COMPONENT_DECLARE(CryptoServer_1)
- *      CryptoServer_COMPONENT_DECLARE(CryptoServer_2)
+ *      CryptoServer_COMPONENT_DEFINE(CryptoServer_1)
+ *      CryptoServer_COMPONENT_DEFINE(CryptoServer_2)
  *
  */
 
@@ -43,11 +43,11 @@ struct CryptoServer_Config {
 /*
  * Declare the CryptoServer with a given type name:
  *
- *      CryptoServer_COMPONENT_DECLARE(
+ *      CryptoServer_COMPONENT_DEFINE(
  *          <name>
  *      )
  */
-#define CryptoServer_COMPONENT_DECLARE( \
+#define CryptoServer_COMPONENT_DEFINE( \
     _name_) \
     \
     component _name_ { \
