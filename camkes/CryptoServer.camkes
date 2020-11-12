@@ -14,6 +14,8 @@
  *
  */
 
+#pragma once
+
 import <if_OS_Crypto.camkes>;
 import <if_OS_Entropy.camkes>;
 import <if_OS_Storage.camkes>;
