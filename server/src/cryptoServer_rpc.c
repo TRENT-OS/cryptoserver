@@ -205,15 +205,15 @@ initCrypto(
     {
         size_t handleMgrMemSize =
             HandleMgr_GET_SIZE_BY_CAPACITY(
-                cryptoServer_config.clients[client->id-1].handleMgrCapacity);
+                cryptoServer_config.clients[client->id - 1].handleMgrCapacity);
         client->handleMgrMem[i] = malloc(handleMgrMemSize);
 
         if (client->handleMgrMem[i] != NULL)
         {
             if ((err = HandleMgr_init(&client->handleMgrs[i],
-                                        client->handleMgrMem[i],
-                                        handleMgrMemSize,
-                                        NULL)) != OS_SUCCESS)
+                                      client->handleMgrMem[i],
+                                      handleMgrMemSize,
+                                      NULL)) != OS_SUCCESS)
             {
                 free(client->handleMgrMem[i]);
                 goto error;
@@ -228,7 +228,7 @@ initCrypto(
     return OS_Crypto_init(&client->hCrypto, &cfgCrypto);
 
 error:
-    for (i = i-1; i >= 0; i--)
+    for (i = i - 1; i >= 0; i--)
     {
         HandleMgr_free(&client->handleMgrs[i]);
         free(client->handleMgrMem[i]);
