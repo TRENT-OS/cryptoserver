@@ -16,18 +16,16 @@
 #include <camkes.h>
 
 // Get a client when called via RPC
-#define GET_CLIENT(cli, cid)                                            \
-    if ((cli = getClient(cid)) == NULL)                                 \
-    {                                                                   \
-        Debug_LOG_ERROR("Could not get corresponding client state");    \
-        return OS_ERROR_NOT_FOUND;                                      \
-    }
-// Check a buffer size against a client's dataport size
-#define CHK_SIZE(cli, sz)                                       \
-    if (sz > OS_Dataport_getSize(*cli->dataport)) {             \
-        Debug_LOG_ERROR("Requested size too big for dataport"); \
-        return OS_ERROR_INVALID_PARAMETER;                      \
-    }
+#define GET_CLIENT(cli, cid) \
+    do { \
+        if ((cli = getClient(cid)) == NULL) \
+        { \
+            Debug_LOG_ERROR("Could not get state for client with ID=%u, the " \
+                            "badge number is most likely not properly " \
+                            "configured", cid); \
+            return OS_ERROR_NOT_FOUND; \
+        } \
+    } while(0)
 
 // Config for FileSystem API
 static const OS_FileSystem_Config_t cfgFs =
@@ -329,6 +327,7 @@ cryptoServer_rpc_loadKey(
     if ((err = OS_Keystore_loadKey(owner->keys.hKeystore, name, &data,
                                    &dataLen)) != OS_SUCCESS)
     {
+        Debug_LOG_ERROR("OS_Keystore_loadKey() failed with %u", err);
         return err;
     }
 
@@ -349,6 +348,7 @@ cryptoServer_rpc_storeKey(
     OS_Error_t err;
     OS_CryptoKey_Data_t data;
     CryptoServer_Client_t* client;
+    size_t limit;
 
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
 
@@ -358,13 +358,16 @@ cryptoServer_rpc_storeKey(
     // so we can use it straight-forward.
     if ((err = OS_CryptoKey_export(keyHandle, &data)) != OS_SUCCESS)
     {
+        Debug_LOG_ERROR("OS_CryptoKey_export() failed with %u", err);
         return err;
     }
 
     // Check if we are about to exceed the storage limit for this keystore
-    if (client->keys.bytesWritten + sizeof(data) >
-        cryptoServer_config.clients[client->id - 1].storageLimit)
+    limit = cryptoServer_config.clients[client->id - 1].storageLimit;
+    if (client->keys.bytesWritten + sizeof(data) > limit)
     {
+        Debug_LOG_ERROR("Client with ID=%u has reached storage limit of %zd "
+                        "bytes", client->id, limit);
         return OS_ERROR_INSUFFICIENT_SPACE;
     }
 
@@ -373,6 +376,10 @@ cryptoServer_rpc_storeKey(
                                     sizeof(data))) == OS_SUCCESS)
     {
         client->keys.bytesWritten += sizeof(data);
+    }
+    else
+    {
+        Debug_LOG_ERROR("OS_Keystore_storeKey() failed with %u", err);
     }
 
     return err;
