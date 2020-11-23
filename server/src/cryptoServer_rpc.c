@@ -305,7 +305,7 @@ cryptoServer_rpc_loadKey(
     GET_CLIENT(owner,  ownerId);
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
 
-    CHECK_VALUE_IN_CLOSED_INTERVAL(strlen(name), 1, KEYSTORE_NAME_MAX);
+    CHECK_VALUE_IN_CLOSED_INTERVAL(strnlen(name, KEYSTORE_NAME_MAX), 1, KEYSTORE_NAME_MAX);
 
     // Go through list of owner's allowedIDs to check if the ID that is requesting
     // access is part of his list
