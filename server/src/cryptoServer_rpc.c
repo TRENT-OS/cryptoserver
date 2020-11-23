@@ -9,6 +9,7 @@
 
 #include "LibDebug/Debug.h"
 #include "LibHandle/HandleMgr.h"
+#include "LibMacros/Check.h"
 
 #include <string.h>
 
@@ -306,10 +307,7 @@ cryptoServer_rpc_loadKey(
     GET_CLIENT(owner,  ownerId);
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
 
-    if (strlen(name) == 0 || strlen(name) > KEYSTORE_NAME_MAX)
-    {
-        return OS_ERROR_INVALID_PARAMETER;
-    }
+    CHECK_VALUE_IN_CLOSED_INTERVAL(strlen(name), 1, KEYSTORE_NAME_MAX);
 
     // Go through list of owner's allowedIDs to check if the ID that is requesting
     // access is part of his list
@@ -354,10 +352,7 @@ cryptoServer_rpc_storeKey(
 
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
 
-    if (strlen(name) == 0 || strlen(name) > KEYSTORE_NAME_MAX)
-    {
-        return OS_ERROR_INVALID_PARAMETER;
-    }
+    CHECK_VALUE_IN_CLOSED_INTERVAL(strlen(name), 1, KEYSTORE_NAME_MAX);
 
     // We already get a key handle that belongs to our own proxy object,
     // so we can use it straight-forward.
@@ -393,7 +388,8 @@ cryptoServer_rpc_Rng_getBytes(
     CryptoServer_Client_t* client;
 
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
-    CHK_SIZE(client, bufSize);
+
+    CHECK_VALUE_IN_CLOSED_INTERVAL(bufSize, 0, OS_Dataport_getSize(*client->dataport));
 
     return OS_CryptoRng_getBytes(
                client->hCrypto,
@@ -409,7 +405,8 @@ cryptoServer_rpc_Rng_reseed(
     CryptoServer_Client_t* client;
 
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
-    CHK_SIZE(client, seedSize);
+
+    CHECK_VALUE_IN_CLOSED_INTERVAL(seedSize, 0, OS_Dataport_getSize(*client->dataport));
 
     return OS_CryptoRng_reseed(
                client->hCrypto,
@@ -464,7 +461,8 @@ cryptoServer_rpc_Mac_process(
     CryptoServer_Client_t* client;
 
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
-    CHK_SIZE(client, dataSize);
+
+    CHECK_VALUE_IN_CLOSED_INTERVAL(dataSize, 0, OS_Dataport_getSize(*client->dataport));
 
     return OS_CryptoMac_process(
                HandleMgr_validate(
@@ -482,7 +480,8 @@ cryptoServer_rpc_Mac_finalize(
     CryptoServer_Client_t* client;
 
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
-    CHK_SIZE(client, *macSize);
+
+    CHECK_VALUE_IN_CLOSED_INTERVAL(*macSize, 0, OS_Dataport_getSize(*client->dataport));
 
     return OS_CryptoMac_finalize(
                HandleMgr_validate(
@@ -555,7 +554,8 @@ cryptoServer_rpc_Digest_process(
     CryptoServer_Client_t* client;
 
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
-    CHK_SIZE(client, inSize);
+
+    CHECK_VALUE_IN_CLOSED_INTERVAL(inSize, 0, OS_Dataport_getSize(*client->dataport));
 
     return OS_CryptoDigest_process(
                HandleMgr_validate(
@@ -573,7 +573,9 @@ cryptoServer_rpc_Digest_finalize(
     CryptoServer_Client_t* client;
 
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
-    CHK_SIZE(client, *digestSize);
+
+    CHECK_VALUE_IN_CLOSED_INTERVAL(*digestSize, 0,
+                         OS_Dataport_getSize(*client->dataport));
 
     return OS_CryptoDigest_finalize(
                HandleMgr_validate(
@@ -655,7 +657,8 @@ cryptoServer_rpc_Key_getParams(
     CryptoServer_Client_t* client;
 
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
-    CHK_SIZE(client, *paramSize);
+
+    CHECK_VALUE_IN_CLOSED_INTERVAL(*paramSize, 0, OS_Dataport_getSize(*client->dataport));
 
     return OS_CryptoKey_getParams(
                HandleMgr_validate(
@@ -688,7 +691,8 @@ cryptoServer_rpc_Key_loadParams(
     CryptoServer_Client_t* client;
 
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
-    CHK_SIZE(client, *paramSize);
+
+    CHECK_VALUE_IN_CLOSED_INTERVAL(*paramSize, 0, OS_Dataport_getSize(*client->dataport));
 
     return OS_CryptoKey_loadParams(
                client->hCrypto,
@@ -745,7 +749,9 @@ cryptoServer_rpc_Agreement_agree(
     CryptoServer_Client_t* client;
 
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
-    CHK_SIZE(client, *sharedSize);
+
+    CHECK_VALUE_IN_CLOSED_INTERVAL(*sharedSize, 0,
+                         OS_Dataport_getSize(*client->dataport));
 
     return OS_CryptoAgreement_agree(
                HandleMgr_validate(
@@ -812,7 +818,9 @@ cryptoServer_rpc_Signature_verify(
     CryptoServer_Client_t* client;
 
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
-    CHK_SIZE(client, hashSize + signatureSize);
+
+    CHECK_VALUE_IN_CLOSED_INTERVAL(signatureSize + hashSize, 0,
+                         OS_Dataport_getSize(*client->dataport));
 
     return OS_CryptoSignature_verify(
                HandleMgr_validate(
@@ -833,8 +841,10 @@ cryptoServer_rpc_Signature_sign(
     CryptoServer_Client_t* client;
 
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
-    CHK_SIZE(client, hashSize);
-    CHK_SIZE(client, *signatureSize);
+
+    CHECK_VALUE_IN_CLOSED_INTERVAL(hashSize, 0, OS_Dataport_getSize(*client->dataport));
+    CHECK_VALUE_IN_CLOSED_INTERVAL(*signatureSize, 0,
+                         OS_Dataport_getSize(*client->dataport));
 
     return OS_CryptoSignature_sign(
                HandleMgr_validate(
@@ -873,7 +883,8 @@ cryptoServer_rpc_Cipher_init(
     CryptoServer_Client_t* client;
 
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
-    CHK_SIZE(client, ivSize);
+
+    CHECK_VALUE_IN_CLOSED_INTERVAL(ivSize, 0, OS_Dataport_getSize(*client->dataport));
 
     return HandleMgr_addOnSuccess(
                &client->handleMgrs[HND_CIPHER],
@@ -915,8 +926,10 @@ cryptoServer_rpc_Cipher_process(
     CryptoServer_Client_t* client;
 
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
-    CHK_SIZE(client, inputSize);
-    CHK_SIZE(client, *outputSize);
+
+    CHECK_VALUE_IN_CLOSED_INTERVAL(inputSize, 0, OS_Dataport_getSize(*client->dataport));
+    CHECK_VALUE_IN_CLOSED_INTERVAL(*outputSize, 0,
+                         OS_Dataport_getSize(*client->dataport));
 
     return OS_CryptoCipher_process(
                HandleMgr_validate(
@@ -953,7 +966,8 @@ cryptoServer_rpc_Cipher_finalize(
     CryptoServer_Client_t* client;
 
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
-    CHK_SIZE(client, *tagSize);
+
+    CHECK_VALUE_IN_CLOSED_INTERVAL(*tagSize, 0, OS_Dataport_getSize(*client->dataport));
 
     return OS_CryptoCipher_finalize(
                HandleMgr_validate(
