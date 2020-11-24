@@ -27,6 +27,10 @@
         } \
     } while(0)
 
+// Translate between badge IDs and array index
+#define CID_TO_IDX(cid) ((cid)-101)
+#define IDX_TO_CID(idx) ((idx)+101)
+
 // Config for FileSystem API
 static const OS_FileSystem_Config_t cfgFs =
 {
@@ -117,11 +121,12 @@ static CryptoServer_Client_t*
 getClient(
     seL4_Word cid)
 {
+    const int idx = CID_TO_IDX(cid);
     CryptoServer_Client_t* client;
 
-    client = (cid > clients) || (cid <= 0) ? NULL :
-             (serverState.clients[cid - 1].cid != cid) ? NULL :
-             &serverState.clients[cid - 1];
+    client = ((idx < 0) || (idx >= clients))
+             ? NULL : (serverState.clients[idx].cid != cid)
+             ? NULL : &serverState.clients[idx];
 
     return client;
 }
@@ -205,7 +210,7 @@ initCrypto(
     {
         size_t handleMgrMemSize =
             HandleMgr_GET_SIZE_BY_CAPACITY(
-                cryptoServer_config.clients[client->cid - 1].handleMgrCapacity);
+                cryptoServer_config.clients[CID_TO_IDX(client->cid)].handleMgrCapacity);
         client->handleMgrMem[i] = malloc(handleMgrMemSize);
 
         if (client->handleMgrMem[i] != NULL)
@@ -262,7 +267,7 @@ post_init()
     for (uint8_t i = 0; i < clients; i++)
     {
         client = &serverState.clients[i];
-        client->cid = i + 1;
+        client->cid = IDX_TO_CID(i);
 
         // Set up an instance of the Crypto API for each client which is then
         // accessed via its RPC interface; every client has its own dataport.
@@ -304,13 +309,14 @@ cryptoServer_rpc_loadKey(
     GET_CLIENT(owner,  ownerId);
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
 
-    CHECK_VALUE_IN_CLOSED_INTERVAL(strnlen(name, KEYSTORE_NAME_MAX), 1, KEYSTORE_NAME_MAX);
+    CHECK_VALUE_IN_CLOSED_INTERVAL(strnlen(name, KEYSTORE_NAME_MAX), 1,
+                                   KEYSTORE_NAME_MAX);
 
     // Go through list of owner's allowedIDs to check if the ID that is requesting
     // access is part of his list
     for (i = 0, isAllowed = false; i < clients && !isAllowed; i++)
     {
-        isAllowed = (cryptoServer_config.clients[owner->cid - 1].allowedIds[i] ==
+        isAllowed = (cryptoServer_config.clients[CID_TO_IDX(owner->cid)].allowedIds[i] ==
                      client->cid);
     }
     if (!isAllowed)
@@ -362,7 +368,7 @@ cryptoServer_rpc_storeKey(
     }
 
     // Check if we are about to exceed the storage limit for this keystore
-    limit = cryptoServer_config.clients[client->cid - 1].storageLimit;
+    limit = cryptoServer_config.clients[CID_TO_IDX(client->cid)].storageLimit;
     if (client->keys.bytesWritten + sizeof(data) > limit)
     {
         Debug_LOG_ERROR("Client with client ID %u has reached storage limit of %zd "

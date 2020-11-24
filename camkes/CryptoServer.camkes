@@ -167,7 +167,7 @@ struct CryptoServer_Config {
     _rpc_, \
     _num_) \
     \
-    _rpc_ ## _attributes = _num_;
+    _rpc_ ## _attributes = (100 + _num_);
 
 
 /*
@@ -178,7 +178,7 @@ struct CryptoServer_Config {
  *          <client_rpc>, <ID>
  *      )
  *
- * NOTE: IDs need to start at 1!
+ * NOTE: IDs need to start at 101!
  *
  */
 #define CryptoServer_CLIENT_ASSIGN_BADGE( \
@@ -189,7 +189,7 @@ struct CryptoServer_Config {
 
 
 /*
- * Assign badges to a list of clients; badge IDs will start at 1 and then be
+ * Assign badges to a list of clients; badge IDs will start at 101 and then be
  * incremented. Make sure to pass clients in same order as they are passed
  * in the CryptoServer_INSTANCE_CONNECT_CLIENTS() macro:
  *
