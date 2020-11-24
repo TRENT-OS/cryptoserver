@@ -327,7 +327,7 @@ cryptoServer_rpc_loadKey(
     if ((err = OS_Keystore_loadKey(owner->keys.hKeystore, name, &data,
                                    &dataLen)) != OS_SUCCESS)
     {
-        Debug_LOG_ERROR("OS_Keystore_loadKey() failed with %u", err);
+        Debug_LOG_ERROR("OS_Keystore_loadKey() failed with %d", err);
         return err;
     }
 
