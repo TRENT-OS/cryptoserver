@@ -20,8 +20,8 @@
     do { \
         if ((cli = getClient(cid)) == NULL) \
         { \
-            Debug_LOG_ERROR("Could not get state for client with ID=%u, the " \
-                            "badge number is most likely not properly " \
+            Debug_LOG_ERROR("Could not get state for client with client ID %u, " \
+                            "the badge number is most likely not properly " \
                             "configured", cid); \
             return OS_ERROR_NOT_FOUND; \
         } \
@@ -269,7 +269,7 @@ post_init()
         client->dataport = &ports[i];
         if (OS_Dataport_isUnset(*client->dataport))
         {
-            Debug_LOG_ERROR("Dataport of client ID=%u is unset", client->cid);
+            Debug_LOG_ERROR("Dataport of client ID %u is unset", client->cid);
             return;
         }
         // Init client's Crypto API instance and list of handles
@@ -315,8 +315,8 @@ cryptoServer_rpc_loadKey(
     }
     if (!isAllowed)
     {
-        Debug_LOG_WARNING("Client with ID=%u failed to access the keystore of ID=%u",
-                          client->cid, owner->cid);
+        Debug_LOG_WARNING("Client with client ID %u failed to access the keystore " \
+                          "of client ID %u", client->cid, owner->cid);
         return OS_ERROR_ACCESS_DENIED;
     }
 
@@ -365,7 +365,7 @@ cryptoServer_rpc_storeKey(
     limit = cryptoServer_config.clients[client->cid - 1].storageLimit;
     if (client->keys.bytesWritten + sizeof(data) > limit)
     {
-        Debug_LOG_ERROR("Client with ID=%u has reached storage limit of %zd "
+        Debug_LOG_ERROR("Client with client ID %u has reached storage limit of %zd "
                         "bytes", client->cid, limit);
         return OS_ERROR_INSUFFICIENT_SPACE;
     }
