@@ -89,7 +89,7 @@ typedef struct
 
 typedef struct
 {
-    unsigned int id;
+    unsigned int cid;
     OS_Crypto_Handle_t hCrypto;
     char* handleMgrMem[HND_MAX];
     HandleMgr_t handleMgrs[HND_MAX];
@@ -115,13 +115,13 @@ static const size_t clients = sizeof(cryptoServer_config) /
 
 static CryptoServer_Client_t*
 getClient(
-    seL4_Word id)
+    seL4_Word cid)
 {
     CryptoServer_Client_t* client;
 
-    client = (id > clients) || (id <= 0) ? NULL :
-             (serverState.clients[id - 1].id != id) ? NULL :
-             &serverState.clients[id - 1];
+    client = (cid > clients) || (cid <= 0) ? NULL :
+             (serverState.clients[cid - 1].cid != cid) ? NULL :
+             &serverState.clients[cid - 1];
 
     return client;
 }
@@ -205,7 +205,7 @@ initCrypto(
     {
         size_t handleMgrMemSize =
             HandleMgr_GET_SIZE_BY_CAPACITY(
-                cryptoServer_config.clients[client->id - 1].handleMgrCapacity);
+                cryptoServer_config.clients[client->cid - 1].handleMgrCapacity);
         client->handleMgrMem[i] = malloc(handleMgrMemSize);
 
         if (client->handleMgrMem[i] != NULL)
@@ -262,15 +262,14 @@ post_init()
     for (uint8_t i = 0; i < clients; i++)
     {
         client = &serverState.clients[i];
-        client->id = i + 1;
+        client->cid = i + 1;
 
         // Set up an instance of the Crypto API for each client which is then
         // accessed via its RPC interface; every client has its own dataport.
         client->dataport = &ports[i];
         if (OS_Dataport_isUnset(*client->dataport))
         {
-            Debug_LOG_ERROR("Dataport %i is unset, it should be connected "
-                            "to the respective client", i + 1);
+            Debug_LOG_ERROR("Dataport of client ID=%u is unset", client->cid);
             return;
         }
         // Init client's Crypto API instance and list of handles
@@ -311,13 +310,13 @@ cryptoServer_rpc_loadKey(
     // access is part of his list
     for (i = 0, isAllowed = false; i < clients && !isAllowed; i++)
     {
-        isAllowed = (cryptoServer_config.clients[owner->id - 1].allowedIds[i] ==
-                     client->id);
+        isAllowed = (cryptoServer_config.clients[owner->cid - 1].allowedIds[i] ==
+                     client->cid);
     }
     if (!isAllowed)
     {
         Debug_LOG_WARNING("Client with ID=%u failed to access the keystore of ID=%u",
-                          client->id, owner->id);
+                          client->cid, owner->cid);
         return OS_ERROR_ACCESS_DENIED;
     }
 
@@ -363,11 +362,11 @@ cryptoServer_rpc_storeKey(
     }
 
     // Check if we are about to exceed the storage limit for this keystore
-    limit = cryptoServer_config.clients[client->id - 1].storageLimit;
+    limit = cryptoServer_config.clients[client->cid - 1].storageLimit;
     if (client->keys.bytesWritten + sizeof(data) > limit)
     {
         Debug_LOG_ERROR("Client with ID=%u has reached storage limit of %zd "
-                        "bytes", client->id, limit);
+                        "bytes", client->cid, limit);
         return OS_ERROR_INSUFFICIENT_SPACE;
     }
 
