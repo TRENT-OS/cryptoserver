@@ -30,7 +30,9 @@ function(CryptoServer_DeclareCAmkESComponent
             -Werror
         LIBS
             os_core_api
-            os_libs
+            lib_debug
+            lib_macros
+            lib_server
             os_crypto
             os_filesystem
             os_keystore

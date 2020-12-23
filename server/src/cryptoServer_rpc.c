@@ -7,9 +7,9 @@
 #include "OS_Crypto.h"
 #include "OS_Keystore.h"
 
-#include "LibDebug/Debug.h"
-#include "LibHandle/HandleMgr.h"
-#include "LibMacros/Check.h"
+#include "lib_debug/Debug.h"
+#include "lib_server/HandleMgr.h"
+#include "lib_macros/Check.h"
 
 #include <string.h>
 
