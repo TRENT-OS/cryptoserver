@@ -77,8 +77,8 @@ static OS_Dataport_t ports[CRYPTO_CLIENTS_MAX] =
     OS_DATAPORT_ASSIGN(cryptoServer_port8),
 };
 
-// Maximum length of keynames
-#define KEYSTORE_NAME_MAX 8
+// Maximum length of keynames (excluding null terminator).
+#define KEYSTORE_NAME_MAX_LEN 8
 
 // Identify user of interface
 seL4_Word cryptoServer_rpc_get_sender_id(
@@ -309,8 +309,8 @@ cryptoServer_rpc_loadKey(
     GET_CLIENT(owner,  ownerId);
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
 
-    CHECK_VALUE_IN_CLOSED_INTERVAL(strnlen(name, KEYSTORE_NAME_MAX), 1,
-                                   KEYSTORE_NAME_MAX);
+    CHECK_VALUE_IN_CLOSED_INTERVAL(strnlen(name, KEYSTORE_NAME_MAX_LEN), 1,
+                                   KEYSTORE_NAME_MAX_LEN);
 
     // Go through list of owner's allowedIDs to check if the ID that is requesting
     // access is part of his list
@@ -357,7 +357,7 @@ cryptoServer_rpc_storeKey(
 
     GET_CLIENT(client, cryptoServer_rpc_get_sender_id());
 
-    CHECK_VALUE_IN_CLOSED_INTERVAL(strlen(name), 1, KEYSTORE_NAME_MAX);
+    CHECK_VALUE_IN_CLOSED_INTERVAL(strlen(name), 1, KEYSTORE_NAME_MAX_LEN);
 
     // We already get a key handle that belongs to our own proxy object,
     // so we can use it straight-forward.
