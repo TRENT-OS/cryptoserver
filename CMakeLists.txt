@@ -35,7 +35,7 @@ function(CryptoServer_DeclareCAmkESComponent
             lib_server
             os_crypto
             os_filesystem
-            os_keystore
+            os_keystore_file
     )
 
     #---------------------------------------------------------------------------
