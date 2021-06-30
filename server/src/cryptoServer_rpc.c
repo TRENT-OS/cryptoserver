@@ -5,7 +5,7 @@
 // OS includes
 #include "OS_FileSystem.h"
 #include "OS_Crypto.h"
-#include "OS_Keystore.h"
+#include "OS_KeystoreFile.h"
 
 #include "lib_debug/Debug.h"
 #include "lib_server/HandleMgr.h"
@@ -184,8 +184,14 @@ initKeyStore(
 
     // Every keystore needs its own instance name
     snprintf(ksName, sizeof(ksName), "kstore%02i", index);
-    if ((err = OS_Keystore_init(&ks->hKeystore, hFs, ks->hCrypto,
-                                ksName)) != OS_SUCCESS)
+
+    err = OS_KeystoreFile_init(
+        &ks->hKeystore,
+        hFs,
+        ks->hCrypto,
+        ksName);
+
+    if (err != OS_SUCCESS)
     {
         Debug_LOG_ERROR("OS_Keystore_init() failed with %d", err);
         goto err0;
