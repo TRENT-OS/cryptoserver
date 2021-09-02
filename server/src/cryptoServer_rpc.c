@@ -20,9 +20,9 @@
     do { \
         if ((cli = getClient(cid)) == NULL) \
         { \
-            Debug_LOG_ERROR("Could not get state for client with client ID %u, " \
-                            "the badge number is most likely not properly " \
-                            "configured", cid); \
+            Debug_LOG_ERROR("Could not get state for client with client ID " \
+                            "%"SEL4_PRI_word", the badge number is most likely" \
+                            " not properly configured", cid); \
             return OS_ERROR_NOT_FOUND; \
         } \
     } while(0)

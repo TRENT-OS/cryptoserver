@@ -6,10 +6,12 @@
 
 #include <stdint.h>
 
+#include <camkes.h>
+
 typedef struct
 {
     OS_Error_t (*storeKey)(OS_CryptoKey_Handle_t hKey, const char* name);
-    OS_Error_t (*loadKey)(OS_CryptoKey_Handle_t* hKey, unsigned int ownerId,
+    OS_Error_t (*loadKey)(OS_CryptoKey_Handle_t* hKey, seL4_Word ownerId,
                           const char* name);
 } if_CryptoServer_t;
 
