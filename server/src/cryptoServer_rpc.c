@@ -215,7 +215,7 @@ initCrypto(
     for (; i < HND_MAX; i++)
     {
         size_t handleMgrMemSize =
-            HandleMgr_GET_SIZE_BY_CAPACITY(
+            HandleMgr_SIZE_OF_BUFFER(
                 cryptoServer_config.clients[CID_TO_IDX(client->cid)].handleMgrCapacity);
         client->handleMgrMem[i] = malloc(handleMgrMemSize);
 
