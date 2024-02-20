@@ -1,5 +1,12 @@
-/**
- * Copyright (C) 2019-2020, HENSOLDT Cyber GmbH
+/*
+ * Copyright (C) 2019-2024, HENSOLDT Cyber GmbH
+ *
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ *
+ * For commercial licensing, contact: info.cyber@hensoldt.net
+ */
+
+/*
  *
  * @defgroup OS CryptoServer
  * @{
@@ -49,11 +56,11 @@
  */
 OS_Error_t
 CryptoServer_loadKey(
-    const if_CryptoServer_t* rpc,
-    OS_CryptoKey_Handle_t*   hKey,
-    OS_Crypto_Handle_t       hCrypto,
-    seL4_Word                ownerId,
-    const char*              name);
+    const if_CryptoServer_t *rpc,
+    OS_CryptoKey_Handle_t *hKey,
+    OS_Crypto_Handle_t hCrypto,
+    seL4_Word ownerId,
+    const char *name);
 
 /**
  * @brief Store a key in the CryptoServer's KeyStore
@@ -89,8 +96,8 @@ CryptoServer_loadKey(
  */
 OS_Error_t
 CryptoServer_storeKey(
-    const if_CryptoServer_t* rpc,
-    OS_CryptoKey_Handle_t    hKey,
-    const char*              name);
+    const if_CryptoServer_t *rpc,
+    OS_CryptoKey_Handle_t hKey,
+    const char *name);
 
 /** @} */
